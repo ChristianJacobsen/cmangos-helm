@@ -16,6 +16,8 @@ jobs:
 
       - uses: azure/setup-helm@v4
 
+      - uses: oras-project/setup-oras@v1
+
       # Without the pin pull request of the images workflow, the chart has no
       # image tags and does not install.
       - name: the chart values pin the images
@@ -28,6 +30,19 @@ jobs:
           set -euo pipefail
           owner="${GITHUB_REPOSITORY_OWNER,,}"   # GHCR names are lowercase
           version="${GITHUB_REF_NAME#chart-v}"
+          # Artifact Hub shows the README from the chart package.
+          cp README.md charts/cmangos/README.md
           helm package charts/cmangos --version "$version"
           echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           helm push "cmangos-$version.tgz" "oci://ghcr.io/$owner/charts"
+
+      - name: push the artifact hub metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "$GITHUB_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          oras push "ghcr.io/$owner/charts/cmangos:artifacthub.io" \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml

@@ -10,10 +10,14 @@ appVersion: "classic"
 keywords:
   - cmangos
   - mangos
+  - world-of-warcraft
   - wow
   - vanilla
   - classic
+  - private-server
+  - playerbots
   - game-server
+  - mmorpg
 home: https://github.com/ChristianJacobsen/cmangos-helm
 sources:
   - https://github.com/ChristianJacobsen/cmangos-helm
