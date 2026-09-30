@@ -37,6 +37,16 @@
   ],
   "packageRules": [
     {
+      "description": "MySQL upgrades the data directory in place, and the upgrade cannot be undone. Move to the next LTS by hand, after a test.",
+      "matchDepNames": [
+        "library/mysql"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Ubuntu majors change library package names in the Dockerfile. Review them by hand.",
       "matchDepNames": [
         "ubuntu"
