@@ -26,6 +26,24 @@ jobs:
           private-key: ${{ secrets.PIN_APP_PRIVATE_KEY }}
           permission-contents: write
 
+      # A collaborator can push this branch too. GitHub also signs commits from
+      # its web editor, so the author check is what excludes them.
+      - name: the new commits are signed pins from the app
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          BOT: ${{ steps.app-token.outputs.app-slug }}[bot]
+        run: |
+          set -euo pipefail
+          ok="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$SHA" --jq '
+            .status == "ahead"
+            and all(.commits[]; .commit.verification.verified and .author.login == env.BOT)
+            and all(.files[]; .filename == "charts/cmangos/values.yaml")')"
+          if [ "$ok" != true ]; then
+            echo "::error::main...$SHA holds more than signed pin commits from $BOT"
+            exit 1
+          fi
+
       # force=false: GitHub refuses the update unless it is a fast-forward.
       - name: fast-forward main to the tested commit
         env:
