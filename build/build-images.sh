@@ -65,6 +65,19 @@ fi
 OUTPUT="--load"
 [ "$PUSH" = "1" ] && OUTPUT="--push"
 
+origin_url() {
+  local url
+  url="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null)" || return 0
+  url="${url%.git}"
+  case "$url" in
+    git@*) url="${url#git@}"; url="https://${url/://}" ;;
+  esac
+  printf '%s\n' "$url"
+}
+# GHCR links a package to the repository in org.opencontainers.image.source.
+IMAGE_SOURCE="${IMAGE_SOURCE:-$(origin_url)}"
+IMAGE_REVISION="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+
 echo "==> core        $CORE_REPO @ $CORE_REF"
 echo "==> world db    $DB_REPO @ $DB_REF"
 echo "==> playerbots  $PLAYERBOTS_REPO @ $PLAYERBOTS_REF"
@@ -73,6 +86,16 @@ echo "==> platforms   $PLATFORMS (push=$PUSH)"
 
 CREATED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 for target in $TARGETS; do
+  labels=(
+    --label "org.opencontainers.image.created=$CREATED"
+    --label "org.opencontainers.image.version=$TAG"
+    --label "org.opencontainers.image.title=cmangos-classic-$target"
+    --label "net.cmangos.core.revision=$CORE_REF"
+    --label "net.cmangos.classic-db.revision=$DB_REF"
+    --label "net.cmangos.playerbots.revision=$PLAYERBOTS_REF"
+  )
+  [ -n "$IMAGE_SOURCE" ] && labels+=(--label "org.opencontainers.image.source=$IMAGE_SOURCE")
+  [ -n "$IMAGE_REVISION" ] && labels+=(--label "org.opencontainers.image.revision=$IMAGE_REVISION")
   echo "==> building $target"
   # shellcheck disable=SC2086
   docker buildx build $BUILDER_ARGS $CACHE_ARGS "$BUILD_DIR" \
@@ -83,13 +106,7 @@ for target in $TARGETS; do
     --build-arg "DB_REF=$DB_REF" \
     --build-arg "PLAYERBOTS_REF=$PLAYERBOTS_REF" \
     --build-arg "BUILD_JOBS=$BUILD_JOBS" \
-    --label "org.opencontainers.image.created=$CREATED" \
-    --label "org.opencontainers.image.version=$TAG" \
-    --label "org.opencontainers.image.title=cmangos-classic-$target" \
-    --label "org.opencontainers.image.source=$CORE_REPO" \
-    --label "org.opencontainers.image.revision=$CORE_REF" \
-    --label "net.cmangos.classic-db.revision=$DB_REF" \
-    --label "net.cmangos.playerbots.revision=$PLAYERBOTS_REF" \
+    "${labels[@]}" \
     --tag "$REGISTRY/cmangos-classic-$target:$TAG" \
     $OUTPUT
 done

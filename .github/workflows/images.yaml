@@ -57,6 +57,7 @@ jobs:
           TAG: ${{ needs.meta.outputs.tag }}-${{ matrix.arch }}
           PLATFORMS: linux/${{ matrix.arch }}
           PUSH: "1"
+          IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           # The layer cache skips the compile when build/sources.env did not change.
           CACHE_ARGS: >-
             --cache-from type=gha,scope=cmangos-${{ matrix.arch }}
@@ -83,12 +84,16 @@ jobs:
         env:
           REGISTRY: ${{ needs.meta.outputs.registry }}
           TAG: ${{ needs.meta.outputs.tag }}
+          IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
           for img in server db; do
             repo="$REGISTRY/cmangos-classic-$img"
             for tag in "$TAG" latest; do
-              docker buildx imagetools create -t "$repo:$tag" "$repo:$TAG-amd64" "$repo:$TAG-arm64"
+              # An index has no image labels, so the repository link needs an annotation.
+              docker buildx imagetools create -t "$repo:$tag" \
+                --annotation "index:org.opencontainers.image.source=$IMAGE_SOURCE" \
+                "$repo:$TAG-amd64" "$repo:$TAG-arm64"
             done
             # The index digest (not a platform digest) is the value to pin.
             digest="$(docker buildx imagetools inspect "$repo:$TAG" --format '{{ json .Manifest }}' | jq -r .digest)"
