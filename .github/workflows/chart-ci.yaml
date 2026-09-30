@@ -1,0 +1,131 @@
+name: chart-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ["charts/**", "build/**", ".github/workflows/chart-ci.yaml"]
+  pull_request:
+    paths: ["charts/**", "build/**", ".github/workflows/chart-ci.yaml"]
+
+permissions:
+  contents: read
+
+env:
+  CHART: charts/cmangos
+  # The chart fails to render without images and a client source.
+  IMAGE_ARGS: >-
+    --set images.server.repository=example/cmangos-classic-server
+    --set images.server.tag=test
+    --set images.db.repository=example/cmangos-classic-db
+    --set images.db.tag=test
+  BASE_ARGS: >-
+    --set images.server.repository=example/cmangos-classic-server
+    --set images.server.tag=test
+    --set images.db.repository=example/cmangos-classic-db
+    --set images.db.tag=test
+    --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: |
+          set -euo pipefail
+          helm lint "$CHART"
+          helm lint "$CHART" $BASE_ARGS
+          helm lint "$CHART" $BASE_ARGS --set playerbots.enabled=true --set ahbot.enabled=true
+          helm lint "$CHART" $BASE_ARGS --set mysql.enabled=false \
+            --set externalDatabase.host=db.example.com --set database.existingSecret=db-creds
+          helm lint "$CHART" $BASE_ARGS --set clientData.source=download \
+            --set clientData.download.url=https://example.com/data.tar.gz
+
+      - name: config keys render as CMaNGOS environment variables
+        run: |
+          set -euo pipefail
+          rendered="$(helm template t "$CHART" $BASE_ARGS \
+            --set 'mangosd.config.Rate\.XP\.Kill=3' \
+            --set 'mangosd.config.GridCleanUpDelay=3000000' \
+            --set 'realmd.config.WrongPass\.MaxCount=5' \
+            --set playerbots.enabled=true)"
+          grep -A1 'name: Mangosd_Rate_XP_Kill' <<< "$rendered" | grep -q '"3"'
+          grep -A1 'name: Mangosd_GridCleanUpDelay' <<< "$rendered" | grep -q '"3000000"'
+          grep -A1 'name: Realmd_WrongPass_MaxCount' <<< "$rendered" | grep -q '"5"'
+          grep -A1 'name: PlayerBots_AiPlayerbot_Enabled' <<< "$rendered" | grep -q '"1"'
+          grep -A1 'name: Mangosd_AuctionHouseBot_Chance_Sell' <<< "$rendered" | grep -q '"0"'
+
+      - name: client and data volumes
+        run: |
+          set -euo pipefail
+          # A client archive instead of a client volume.
+          rendered="$(helm template t "$CHART" $IMAGE_ARGS --set clientData.extract.clientUrl=https://example.com/wow.tar.gz)"
+          grep -q 'name: CLIENT_URL' <<< "$rendered"
+          grep -q 'mountPath: /scratch' <<< "$rendered"
+          # A data volume source instead of the chart PVC.
+          rendered="$(helm template t "$CHART" $BASE_ARGS --set clientData.volume.nfs.server=nas --set clientData.volume.nfs.path=/data)"
+          ! grep -q 'kind: PersistentVolumeClaim' <<< "$rendered"
+          test "$(grep -c 'server: nas' <<< "$rendered")" = 2
+
+      - name: gateway api renders the served TCPRoute version
+        run: |
+          set -euo pipefail
+          refs=(--set gateway.enabled=true
+            --set 'gateway.parentRefs.realmd[0].name=games' --set 'gateway.parentRefs.realmd[0].sectionName=auth'
+            --set 'gateway.parentRefs.mangosd[0].name=games' --set 'gateway.parentRefs.mangosd[0].sectionName=world')
+          helm template t "$CHART" $BASE_ARGS "${refs[@]}" \
+            --api-versions gateway.networking.k8s.io/v1alpha2/TCPRoute \
+            | grep -q "apiVersion: gateway.networking.k8s.io/v1alpha2"
+          helm template t "$CHART" $BASE_ARGS "${refs[@]}" \
+            --api-versions gateway.networking.k8s.io/v1/TCPRoute \
+            | grep -q "apiVersion: gateway.networking.k8s.io/v1"
+
+      - name: invalid values must fail
+        run: |
+          set -uo pipefail
+          expect_fail() {
+            if helm template t "$CHART" "$@" >/dev/null 2>&1; then
+              echo "expected a template failure: $*" >&2
+              exit 1
+            fi
+          }
+          # No images.
+          expect_fail --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+          # No client volume.
+          expect_fail $IMAGE_ARGS
+          # mmaps without vmaps.
+          expect_fail $BASE_ARGS --set clientData.extract.vmaps=false
+          # Gateway without a TCPRoute API in the cluster.
+          expect_fail $BASE_ARGS --set gateway.enabled=true \
+            --set 'gateway.parentRefs.realmd[0].name=g' --set 'gateway.parentRefs.mangosd[0].name=g'
+          # A ";" in the database password breaks the connection strings.
+          expect_fail $BASE_ARGS --set 'database.password=a;b'
+          # An account without a password.
+          expect_fail $BASE_ARGS --set 'dbInit.accounts[0].username=admin'
+          echo "all invalid values failed as expected"
+
+      - name: kubeconform
+        run: |
+          helm template t "$CHART" $BASE_ARGS --set playerbots.enabled=true \
+            --set 'dbInit.accounts[0].username=admin' --set 'dbInit.accounts[0].password=secret' \
+            | docker run --rm -i ghcr.io/yannh/kubeconform:v0.7.0 \
+              -summary -strict -ignore-missing-schemas -kubernetes-version 1.32.0
+
+  scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck
+        run: shellcheck build/build-images.sh build/scripts/*.sh
+      - name: python scripts
+        run: |
+          set -euo pipefail
+          python3 build/scripts/srp6.py --self-test
+          python3 -m py_compile build/scripts/auth-check.py
+          cp charts/cmangos/values.yaml /tmp/values.yaml
+          python3 build/pin-images.py --values /tmp/values.yaml --tag 20260101-abcdef0 \
+            --server-digest "sha256:$(printf '%064d' 1)" --db-digest "sha256:$(printf '%064d' 2)"
+          test "$(diff charts/cmangos/values.yaml /tmp/values.yaml | grep -c '^>')" = 4

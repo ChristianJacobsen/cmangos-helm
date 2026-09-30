@@ -1,0 +1,33 @@
+name: chart-release
+
+on:
+  push:
+    tags: ["chart-v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: azure/setup-helm@v4
+
+      # Without the pin pull request of the images workflow, the chart has no
+      # image tags and does not install.
+      - name: the chart values pin the images
+        run: helm template t charts/cmangos --set clientData.extract.clientVolume.hostPath.path=/srv/wow >/dev/null
+
+      - name: package + push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"   # GHCR names are lowercase
+          version="${GITHUB_REF_NAME#chart-v}"
+          helm package charts/cmangos --version "$version"
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          helm push "cmangos-$version.tgz" "oci://ghcr.io/$owner/charts"

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build/sources\\.env$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\n[A-Z_]+=(?<currentDigest>[0-9a-f]{40})"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^charts/cmangos/values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s+[A-Za-z]+:\\n\\s+registry: \\S+\\n\\s+repository: \\S+\\n\\s+tag: (?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG UBUNTU_IMAGE=ubuntu:(?<currentValue>\\S+)"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Ubuntu majors change library package names in the Dockerfile. Review them by hand.",
+      "matchDepNames": [
+        "ubuntu"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "matchDatasources": [
+        "git-refs"
+      ],
+      "groupName": "cmangos sources",
+      "schedule": [
+        "before 4am on monday"
+      ]
+    }
+  ]
+}

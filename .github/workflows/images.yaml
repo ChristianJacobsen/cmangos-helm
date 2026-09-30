@@ -1,0 +1,130 @@
+name: images
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Picks up Ubuntu security updates between source bumps.
+    - cron: "17 4 * * 1"
+  push:
+    branches: [main]
+    paths: ["build/**", ".github/workflows/images.yaml"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  meta:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      registry: ${{ steps.meta.outputs.registry }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: meta
+        run: |
+          . build/sources.env
+          echo "tag=$(date -u +%Y%m%d)-${CORE_REF:0:7}" >> "$GITHUB_OUTPUT"
+          # GHCR names are lowercase.
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: meta
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-24.04
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build + push per-arch images
+        env:
+          REGISTRY: ${{ needs.meta.outputs.registry }}
+          TAG: ${{ needs.meta.outputs.tag }}-${{ matrix.arch }}
+          PLATFORMS: linux/${{ matrix.arch }}
+          PUSH: "1"
+          # The layer cache skips the compile when build/sources.env did not change.
+          CACHE_ARGS: >-
+            --cache-from type=gha,scope=cmangos-${{ matrix.arch }}
+            --cache-to type=gha,mode=max,scope=cmangos-${{ matrix.arch }}
+        run: build/build-images.sh
+
+  manifest:
+    needs: [meta, build]
+    runs-on: ubuntu-24.04
+    outputs:
+      server-digest: ${{ steps.merge.outputs.server-digest }}
+      db-digest: ${{ steps.merge.outputs.db-digest }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: merge multi-arch manifests
+        id: merge
+        env:
+          REGISTRY: ${{ needs.meta.outputs.registry }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for img in server db; do
+            repo="$REGISTRY/cmangos-classic-$img"
+            for tag in "$TAG" latest; do
+              docker buildx imagetools create -t "$repo:$tag" "$repo:$TAG-amd64" "$repo:$TAG-arm64"
+            done
+            # The index digest (not a platform digest) is the value to pin.
+            digest="$(docker buildx imagetools inspect "$repo:$TAG" --format '{{ json .Manifest }}' | jq -r .digest)"
+            echo "$repo:$TAG@$digest"
+            echo "$img-digest=$digest" >> "$GITHUB_OUTPUT"
+          done
+
+  pin:
+    needs: [meta, manifest]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: pin the images in the chart values
+        run: >
+          build/pin-images.py
+          --tag "${{ needs.meta.outputs.tag }}"
+          --server-digest "${{ needs.manifest.outputs.server-digest }}"
+          --db-digest "${{ needs.manifest.outputs.db-digest }}"
+
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          # A pull request opened with GITHUB_TOKEN does not start chart-ci.
+          token: ${{ secrets.PIN_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: chore/pin-images
+          commit-message: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
+          title: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
+          body: |
+            Pins the chart images to the build that the images workflow published:
+
+            - `${{ needs.meta.outputs.registry }}/cmangos-classic-server:${{ needs.meta.outputs.tag }}@${{ needs.manifest.outputs.server-digest }}`
+            - `${{ needs.meta.outputs.registry }}/cmangos-classic-db:${{ needs.meta.outputs.tag }}@${{ needs.manifest.outputs.db-digest }}`
+
+            The source commits are in `build/sources.env`.
+          delete-branch: true
