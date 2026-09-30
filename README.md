@@ -464,3 +464,7 @@ kubectl -n cmangos delete secret cmangos-db
 - The data volume uses ReadWriteOnce by default. That works on one node. On
   clusters with more nodes, use a ReadWriteMany volume through
   `clientData.existingClaim`, or keep the Job and `mangosd` on one node.
+
+## License
+
+The chart uses the GPL-2.0-or-later license, the same as CMaNGOS. See [LICENSE](https://github.com/ChristianJacobsen/cmangos-helm/blob/main/LICENSE).

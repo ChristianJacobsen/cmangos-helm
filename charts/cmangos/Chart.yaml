@@ -24,6 +24,8 @@ sources:
   - https://github.com/cmangos/mangos-classic
   - https://github.com/cmangos/classic-db
   - https://github.com/cmangos/playerbots
+annotations:
+  artifacthub.io/license: GPL-2.0-or-later
 maintainers:
   - name: ChristianJacobsen
     url: https://github.com/ChristianJacobsen

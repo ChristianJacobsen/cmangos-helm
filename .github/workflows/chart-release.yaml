@@ -30,8 +30,9 @@ jobs:
           set -euo pipefail
           owner="${GITHUB_REPOSITORY_OWNER,,}"   # GHCR names are lowercase
           version="${GITHUB_REF_NAME#chart-v}"
-          # Artifact Hub shows the README from the chart package.
-          cp README.md charts/cmangos/README.md
+          # Artifact Hub shows the README from the chart package, and the GPL
+          # wants its text in each copy of the chart.
+          cp README.md LICENSE charts/cmangos/
           helm package charts/cmangos --version "$version"
           echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           helm push "cmangos-$version.tgz" "oci://ghcr.io/$owner/charts"
