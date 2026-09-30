@@ -102,14 +102,6 @@ The images workflow publishes the images with the tags `<date>-<commit>` and
 `latest`. Then it opens a pull request that pins the new tag and digest in
 `charts/cmangos/values.yaml`.
 
-The images workflow opens that pull request with the default token. Before
-the first run, turn on "Allow GitHub Actions to create and approve pull
-requests" in `Settings > Actions > General`.
-
-A pull request from the default token does not start other workflows. To run
-`chart-ci` on the pin pull request, add a `PIN_PR_TOKEN` secret. It must be a
-fine-grained token with write access to contents and pull requests.
-
 ## Releases
 
 To release the chart, merge the pin pull request. Then push a tag:

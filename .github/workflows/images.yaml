@@ -123,10 +123,20 @@ jobs:
           --server-digest "${{ needs.manifest.outputs.server-digest }}"
           --db-digest "${{ needs.manifest.outputs.db-digest }}"
 
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        if: vars.PIN_APP_CLIENT_ID != ''
+        with:
+          client-id: ${{ vars.PIN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           # A pull request opened with GITHUB_TOKEN does not start chart-ci.
-          token: ${{ secrets.PIN_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          sign-commits: true
           branch: chore/pin-images
           commit-message: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
           title: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
