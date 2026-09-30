@@ -2,8 +2,10 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "helpers:pinGitHubActionDigestsToSemver"
+    "helpers:pinGitHubActionDigestsToSemver",
+    "group:allNonMajor"
   ],
+  "minimumReleaseAge": "7 days",
   "customManagers": [
     {
       "customType": "regex",
@@ -45,9 +47,11 @@
       "enabled": false
     },
     {
+      "description": "git-refs has no release timestamps. Without this, the minimum release age holds these updates forever.",
       "matchDatasources": [
         "git-refs"
       ],
+      "minimumReleaseAgeBehaviour": "timestamp-optional",
       "groupName": "cmangos sources",
       "schedule": [
         "before 4am on monday"
