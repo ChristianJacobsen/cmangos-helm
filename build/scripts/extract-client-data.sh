@@ -107,7 +107,9 @@ has_step maps || needs_client=1
 if [ "$EXTRACT_VMAPS" = 1 ] && ! has_step vmaps; then needs_client=1; fi
 
 if [ "$needs_client" = 1 ] && [ -n "$CLIENT_URL" ] && [ ! -d "$CLIENT_DIR/Data" ]; then
-  [ -d "$SCRATCH_DIR" ] && [ -w "$SCRATCH_DIR" ] || die "SCRATCH_DIR $SCRATCH_DIR is missing or not writable"
+  if [ ! -d "$SCRATCH_DIR" ] || [ ! -w "$SCRATCH_DIR" ]; then
+    die "SCRATCH_DIR $SCRATCH_DIR is missing or not writable"
+  fi
   log "downloading the client from $CLIENT_URL"
   rm -rf "${SCRATCH_DIR:?}/client"
   fetch "$CLIENT_URL" "$SCRATCH_DIR/client"
