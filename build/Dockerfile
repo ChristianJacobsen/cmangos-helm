@@ -53,7 +53,10 @@ RUN --mount=type=cache,target=/ccache,id=cmangos-classic-ccache \
     cmake --build /build --parallel "$jobs"; \
     cmake --install /build; \
     cp /src/core/contrib/extractor_scripts/config.json /opt/cmangos/bin/tools/; \
-    ccache --show-stats || true
+    ccache --show-stats || true; \
+    # A cache miss rebuilds this layer as a whole, so the object files are of no
+    # use after the install. They would only bloat the layer and the build cache.
+    rm -rf /build
 RUN git -C /src/core rev-parse HEAD > /opt/cmangos/REVISION
 
 # Boost links statically (Boost_USE_STATIC_LIBS in the core CMakeLists.txt).
