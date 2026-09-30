@@ -14,14 +14,14 @@ images:
     registry: ghcr.io
     repository: christianjacobsen/cmangos-classic-server
     tag: "20260930-8ec338a"
-    digest: "sha256:b2ccf123d8fa6417a09b6098f7465e2b799144b652958bd47038a3bbd04dffdd"
+    digest: "sha256:234edefaad5662101bf6a0d844474c4321c7886b27db3b90175434dc6dc2ee38"
   # -- Database installer (target "db"). Must come from the same build as
   # the server image, because the SQL updates track the core revision.
   db:
     registry: ghcr.io
     repository: christianjacobsen/cmangos-classic-db
     tag: "20260930-8ec338a"
-    digest: "sha256:f9f5a57e7a79c2086a37747d3e488a99e78c3cc3bf240a99131cbdf153ab0aa1"
+    digest: "sha256:25a7f57f1b8af6c5e28043973dda67df2e56cf584f7b5c5aa74828625ba7c0a3"
   # -- kubectl, for the init containers that wait for the db-init Job.
   # renovate: datasource=docker depName=alpine/k8s
   kubectl:
