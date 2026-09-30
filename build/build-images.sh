@@ -41,7 +41,7 @@ TAG="${TAG:-$(date -u +%Y%m%d)-$(printf '%s' "$CORE_REF" | cut -c1-"$SHORT_SHA_L
 PUSH="${PUSH:-0}"
 BUILD_JOBS="${BUILD_JOBS:-0}"
 TARGETS="${TARGETS:-server db}"
-CACHE_ARGS="${CACHE_ARGS:-}"
+CACHE_REF="${CACHE_REF:-}"
 
 case "$(uname -m)" in
   arm64|aarch64) HOST_PLATFORM=linux/arm64 ;;
@@ -55,9 +55,9 @@ if [ "$MULTI_ARCH" = "1" ] && [ "$PUSH" != "1" ]; then
   die "multi-platform builds require PUSH=1 (docker cannot --load multi-arch images)"
 fi
 
-# The default docker driver cannot build multi-platform images.
+# The default docker driver cannot build multi-platform images or export a cache.
 BUILDER_ARGS=""
-if [ "$MULTI_ARCH" = "1" ]; then
+if [ "$MULTI_ARCH" = "1" ] || [ -n "$CACHE_REF" ]; then
   docker buildx inspect cmangos >/dev/null 2>&1 || docker buildx create --name cmangos --driver docker-container
   BUILDER_ARGS="--builder cmangos"
 fi
@@ -86,6 +86,11 @@ echo "==> platforms   $PLATFORMS (push=$PUSH)"
 
 CREATED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 for target in $TARGETS; do
+  cache_args=""
+  if [ -n "$CACHE_REF" ]; then
+    cache_args="--cache-from type=registry,ref=$CACHE_REF-$target"
+    cache_args="$cache_args --cache-to type=registry,ref=$CACHE_REF-$target,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true"
+  fi
   labels=(
     --label "org.opencontainers.image.created=$CREATED"
     --label "org.opencontainers.image.version=$TAG"
@@ -98,7 +103,7 @@ for target in $TARGETS; do
   [ -n "$IMAGE_REVISION" ] && labels+=(--label "org.opencontainers.image.revision=$IMAGE_REVISION")
   echo "==> building $target"
   # shellcheck disable=SC2086
-  docker buildx build $BUILDER_ARGS $CACHE_ARGS "$BUILD_DIR" \
+  docker buildx build $BUILDER_ARGS $cache_args "$BUILD_DIR" \
     --file "$BUILD_DIR/Dockerfile" \
     --target "$target" \
     --platform "$PLATFORMS" \

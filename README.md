@@ -127,13 +127,21 @@ Environment variables of `build/build-images.sh`:
 | `PLATFORMS` | host platform | For example `linux/amd64,linux/arm64`. Two or more platforms need `PUSH=1` |
 | `BUILD_JOBS` | `0` | Parallel compile jobs. `0` is one per CPU. Each job can use more than 1 GiB of memory |
 | `CORE_REF`, `DB_REF`, `PLAYERBOTS_REF` | from `build/sources.env` | Branch, tag, or commit |
+| `CACHE_REF` | empty | Registry cache prefix, for example `ghcr.io/you/cmangos-classic-cache:amd64`. The script appends `-<target>` and uses a docker-container builder |
 
-The compiler cache (ccache) lives in a BuildKit cache mount. A rebuild after a
-small source change compiles only the changed files.
+The compiler cache (ccache) lives in a BuildKit cache mount on the builder. On
+the same builder, a rebuild after a small source change compiles only the
+changed files. A new builder starts with an empty compiler cache.
+
+With `CACHE_REF`, the build layers go to a registry cache. If
+`build/sources.env` and the Ubuntu base image are unchanged, a later build on
+any machine skips the compile. A cache that fails to load or save does not
+fail the build.
 
 The GitHub workflow `images.yaml` builds both images every week, and after
-each change in `build/`. It builds on native amd64 and arm64 runners, and it
-publishes the images to `ghcr.io/christianjacobsen/cmangos-classic-{server,db}`
+each change in `build/`. It builds on native amd64 and arm64 runners and
+keeps its registry cache in `ghcr.io/christianjacobsen/cmangos-classic-cache`.
+It publishes the images to `ghcr.io/christianjacobsen/cmangos-classic-{server,db}`
 with the tags `<date>-<commit>` and `latest`. Then it opens a pull request
 that pins the new tag and digest in `charts/cmangos/values.yaml`
 (`build/pin-images.py`). A chart release after that merge installs the new

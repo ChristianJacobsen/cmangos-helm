@@ -58,10 +58,9 @@ jobs:
           PLATFORMS: linux/${{ matrix.arch }}
           PUSH: "1"
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
-          # The layer cache skips the compile when build/sources.env did not change.
-          CACHE_ARGS: >-
-            --cache-from type=gha,scope=cmangos-${{ matrix.arch }}
-            --cache-to type=gha,mode=max,scope=cmangos-${{ matrix.arch }}
+          # A registry cache has no eviction window, so the weekly run skips the
+          # compile when build/sources.env and the base image are unchanged.
+          CACHE_REF: ${{ needs.meta.outputs.registry }}/cmangos-classic-cache:${{ matrix.arch }}
         run: build/build-images.sh
 
   manifest:
