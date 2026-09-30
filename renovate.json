@@ -37,6 +37,13 @@
   ],
   "packageRules": [
     {
+      "description": "The regex manager covers values.yaml. helm-values finds the same images under registry-prefixed names, which the rules below do not match.",
+      "matchManagers": [
+        "helm-values"
+      ],
+      "enabled": false
+    },
+    {
       "description": "MySQL upgrades the data directory in place, and the upgrade cannot be undone. Move to the next LTS by hand, after a test.",
       "matchDepNames": [
         "library/mysql"
