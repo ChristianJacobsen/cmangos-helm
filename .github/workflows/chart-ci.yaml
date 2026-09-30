@@ -94,7 +94,8 @@ jobs:
             fi
           }
           # No images.
-          expect_fail --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+          expect_fail --set images.server.tag= --set images.db.tag= \
+            --set clientData.extract.clientVolume.hostPath.path=/srv/wow
           # No client volume.
           expect_fail $IMAGE_ARGS
           # mmaps without vmaps.
