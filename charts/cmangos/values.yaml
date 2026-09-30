@@ -70,7 +70,7 @@ mysql:
   image:
     registry: docker.io
     repository: library/mysql
-    tag: 8.4.11
+    tag: 9.7.1
     digest: ""
   # -- Root password. Empty = generated and kept across upgrades. MySQL reads
   # it only when it initializes an empty data directory.
