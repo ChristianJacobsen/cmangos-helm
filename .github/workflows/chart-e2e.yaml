@@ -77,7 +77,8 @@ jobs:
         run: |
           set -euo pipefail
           pw="$(kubectl -n cmangos get secret cmangos-db -o jsonpath='{.data.root-password}' | base64 -d)"
-          q() { kubectl -n cmangos exec cmangos-mysql-0 -- env MYSQL_PWD="$pw" mysql -uroot -N -e "$1"; }
+          # The unix socket fails on kind (docker-library/mysql#936).
+          q() { kubectl -n cmangos exec cmangos-mysql-0 -- env MYSQL_PWD="$pw" mysql -h 127.0.0.1 -uroot -N -e "$1"; }
           q "SELECT username, gmlevel FROM classicrealmd.account" | tee /dev/stderr | grep -q '^E2E	3$'
           test "$(q "SELECT COUNT(*) FROM classicrealmd.account WHERE username = 'ADMINISTRATOR'")" = 0
           test "$(q "SELECT COUNT(*) FROM classicmangos.creature_template")" -gt 1000
