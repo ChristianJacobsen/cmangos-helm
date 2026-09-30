@@ -457,6 +457,18 @@ kubectl -n cmangos delete pvc data-cmangos-mysql-0 cmangos-client-data
 kubectl -n cmangos delete secret cmangos-db
 ```
 
+## Signatures
+
+Each chart version and image carries a keyless cosign signature from this repository. To make sure that a chart comes from here, run:
+
+```sh
+cosign verify ghcr.io/christianjacobsen/charts/cmangos:<version> \
+  --certificate-identity-regexp '^https://github\.com/ChristianJacobsen/cmangos-helm/\.github/workflows/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The same command works for the images. Charts 0.1.0 and 0.1.1 and their images have no signatures.
+
 ## Limits
 
 - One realm per release, and one replica of each server.

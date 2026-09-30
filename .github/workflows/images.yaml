@@ -66,11 +66,16 @@ jobs:
   manifest:
     needs: [meta, build]
     runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+      id-token: write   # keyless cosign signs with the OIDC token of the run
     outputs:
       server-digest: ${{ steps.merge.outputs.server-digest }}
       db-digest: ${{ steps.merge.outputs.db-digest }}
     steps:
       - uses: docker/setup-buildx-action@v3
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - uses: docker/login-action@v3
         with:
@@ -78,7 +83,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: merge multi-arch manifests
+      - name: merge + sign multi-arch manifests
         id: merge
         env:
           REGISTRY: ${{ needs.meta.outputs.registry }}
@@ -98,6 +103,7 @@ jobs:
             digest="$(docker buildx imagetools inspect "$repo:$TAG" --format '{{ json .Manifest }}' | jq -r .digest)"
             echo "$repo:$TAG@$digest"
             echo "$img-digest=$digest" >> "$GITHUB_OUTPUT"
+            cosign sign --yes "$repo@$digest"
           done
 
   pin:

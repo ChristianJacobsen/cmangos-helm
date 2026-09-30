@@ -94,9 +94,9 @@ to other files of the repository with full GitHub URLs.
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `chart-ci` | pull request, push | lint, render tests, kubeconform, shellcheck, the SRP6 test vectors |
-| `images` | weekly, push to `build/` | builds and publishes the multi-arch images |
+| `images` | weekly, push to `build/` | builds, signs, and publishes the multi-arch images |
 | `chart-e2e` | nightly | installs the chart on kind with the published images, without client data, and checks the databases and `realmd` |
-| `chart-release` | tag `chart-v*` | pushes the chart to `oci://ghcr.io/christianjacobsen/charts` |
+| `chart-release` | tag `chart-v*` | signs and pushes the chart to `oci://ghcr.io/christianjacobsen/charts` |
 
 The images workflow publishes the images with the tags `<date>-<commit>` and
 `latest`. Then it opens a pull request that pins the new tag and digest in
@@ -118,6 +118,4 @@ To release the chart, merge the pin pull request. Then push a tag:
 git tag chart-v0.1.1 && git push --tags
 ```
 
-The release workflow packages the README with the chart. It also pushes
-`artifacthub-repo.yml` to the chart repository, so that Artifact Hub shows
-the chart as a verified publisher.
+The release workflow packages the README and the LICENSE with the chart, and it signs the chart with cosign. It also pushes `artifacthub-repo.yml` to the chart repository, so that Artifact Hub shows the chart as a verified publisher.
