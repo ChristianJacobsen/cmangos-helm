@@ -27,7 +27,7 @@ images:
   kubectl:
     registry: docker.io
     repository: alpine/k8s
-    tag: 1.35.8
+    tag: 1.37.1
     digest: ""
 
 # -- The images run as uid 1000 (APP_UID in build/Dockerfile).
