@@ -120,7 +120,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: shellcheck
-        run: shellcheck build/build-images.sh build/scripts/*.sh
+        run: >
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.11.0
+          build/build-images.sh build/scripts/*.sh
       - name: python scripts
         run: |
           set -euo pipefail
