@@ -95,6 +95,7 @@ to other files of the repository with full GitHub URLs.
 | --- | --- | --- |
 | `chart-ci` | pull request, push | lint, render tests, kubeconform, shellcheck, the SRP6 test vectors |
 | `images` | weekly, push to `build/` | builds, signs, and publishes the multi-arch images |
+| `pin-merge` | `chart-ci` passes on the pin pull request | fast-forwards `main` to the pin commit, so that the commit keeps its signature |
 | `chart-e2e` | nightly | installs the chart on kind with the published images, without client data, and checks the databases and `realmd` |
 | `chart-release` | tag `chart-v*` | signs and pushes the chart to `oci://ghcr.io/christianjacobsen/charts` |
 
@@ -104,7 +105,7 @@ The images workflow publishes the images with the tags `<date>-<commit>` and
 
 ## Releases
 
-To release the chart, merge the pin pull request. Then push a tag:
+To release the chart, wait until the pin pull request merges. Then push a tag:
 
 ```sh
 git tag chart-v0.1.1 && git push --tags
