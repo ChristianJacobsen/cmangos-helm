@@ -1,5 +1,7 @@
 # cmangos-helm
 
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/cmangos)](https://artifacthub.io/packages/helm/cmangos/cmangos)
+
 A Helm chart for [CMaNGOS](https://cmangos.net/) Classic, a World of Warcraft
 1.12.1 (build 5875) server. The chart runs MySQL, `realmd` (the login server),
 and `mangosd` (the world server). Two Jobs prepare the data: one installs and
