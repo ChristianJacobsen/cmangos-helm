@@ -1,0 +1,7 @@
+build/images.generated.yaml
+values.local.yaml
+.DS_Store
+charts/*/charts/
+charts/*/Chart.lock
+*.tgz
+__pycache__/
