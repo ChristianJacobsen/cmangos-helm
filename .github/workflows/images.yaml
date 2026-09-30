@@ -110,6 +110,10 @@ jobs:
     needs: [meta, manifest]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    # Only main can read the app key in this environment.
+    environment:
+      name: pin-app
+      deployment: false
     permissions:
       contents: write
       pull-requests: write
