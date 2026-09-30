@@ -1,0 +1,125 @@
+{{- $cd := .Values.clientData -}}
+{{- if not (has $cd.source (list "extract" "download" "none")) -}}
+{{- fail "clientData.source must be extract, download or none" -}}
+{{- end -}}
+{{- $clientVolume := $cd.extract.clientVolume -}}
+{{- $clientUrl := and (not $clientVolume) $cd.extract.clientUrl -}}
+{{- if include "cmangos.createDataClaim" . }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "cmangos.dataClaimName" . }}
+  annotations:
+    # The extraction takes a long time, so the data outlives helm uninstall.
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: client-data
+spec:
+  accessModes:
+    {{- toYaml $cd.storage.accessModes | nindent 4 }}
+  {{- with $cd.storage.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $cd.storage.size }}
+---
+{{- end }}
+{{- if ne $cd.source "none" }}
+{{- if and (eq $cd.source "extract") (not $clientVolume) (not $clientUrl) }}
+{{- fail "clientData.source=extract needs clientData.extract.clientVolume (a volume with the 1.12.1 client folder, the folder that contains Data/) or clientData.extract.clientUrl (an archive of that folder). Alternatives: clientData.source=download with clientData.download.url, or clientData.source=none with a data volume that holds the data already." }}
+{{- end }}
+{{- if and (eq $cd.source "download") (not $cd.download.url) }}
+{{- fail "clientData.source=download needs clientData.download.url" }}
+{{- end }}
+{{- if and $cd.extract.mmaps (not $cd.extract.vmaps) }}
+{{- fail "clientData.extract.mmaps needs clientData.extract.vmaps" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "cmangos.clientDataJobName" . }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: client-data
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      {{- include "cmangos.podMetadata" (dict "ctx" . "component" "client-data") | nindent 6 }}
+    spec:
+      {{- include "cmangos.pullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: client-data
+          image: {{ include "cmangos.image" (dict "ctx" . "component" "server") }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["/usr/local/bin/cmangos-extract"]
+          env:
+            - name: DATA_DIR
+              value: /opt/cmangos/data
+            - name: FORCE
+              value: {{ ternary "1" "0" $cd.force | quote }}
+            {{- if eq $cd.source "download" }}
+            - name: DATA_URL
+              value: {{ $cd.download.url | quote }}
+            {{- else }}
+            - name: CLIENT_DIR
+              value: /client
+            {{- if $clientUrl }}
+            - name: CLIENT_URL
+              value: {{ $clientUrl | quote }}
+            - name: SCRATCH_DIR
+              value: /scratch
+            {{- end }}
+            - name: EXTRACT_VMAPS
+              value: {{ ternary "1" "0" $cd.extract.vmaps | quote }}
+            - name: EXTRACT_MMAPS
+              value: {{ ternary "1" "0" $cd.extract.mmaps | quote }}
+            - name: MMAP_THREADS
+              value: {{ $cd.extract.mmapThreads | int | quote }}
+            - name: HIGH_RES_MAPS
+              value: {{ ternary "1" "0" $cd.extract.highResMaps | quote }}
+            - name: HIGH_RES_VMAPS
+              value: {{ ternary "1" "0" $cd.extract.highResVmaps | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /opt/cmangos/data
+            - name: tmp
+              mountPath: /tmp
+            {{- if and (eq $cd.source "extract") $clientVolume }}
+            - name: client
+              mountPath: /client
+              readOnly: true
+              {{- with $cd.extract.clientSubPath }}
+              subPath: {{ . }}
+              {{- end }}
+            {{- end }}
+            {{- if and (eq $cd.source "extract") $clientUrl }}
+            - name: scratch
+              mountPath: /scratch
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml $cd.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- include "cmangos.dataVolume" . | nindent 10 }}
+        - name: tmp
+          emptyDir: {}
+        {{- if eq $cd.source "extract" }}
+        {{- with $clientVolume }}
+        - name: client
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- if $clientUrl }}
+        - name: scratch
+          {{- toYaml $cd.extract.scratchVolume | nindent 10 }}
+        {{- end }}
+        {{- end }}
+{{- end }}

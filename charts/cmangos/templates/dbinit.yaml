@@ -1,0 +1,157 @@
+{{- if .Values.dbInit.enabled -}}
+{{- $fullname := include "cmangos.fullname" . -}}
+{{- $adminUser := include "cmangos.db.adminUser" . -}}
+{{- $names := .Values.database.names -}}
+{{- with .Values.dbInit.world.extraSql }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-world-sql" $fullname }}
+  labels:
+    {{- include "cmangos.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: db-init
+data:
+  {{- range $file, $sql := . }}
+  {{- if not (hasSuffix ".sql" $file) }}
+  {{- fail (printf "dbInit.world.extraSql: %q must end with .sql" $file) }}
+  {{- end }}
+  {{ $file }}: |
+    {{- $sql | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+{{- $inlineAccounts := list -}}
+{{- range $i, $a := .Values.dbInit.accounts -}}
+{{- if not $a.username -}}
+{{- fail (printf "dbInit.accounts[%d]: username is required" $i) -}}
+{{- end -}}
+{{- if and (not $a.existingSecret) (not $a.password) -}}
+{{- fail (printf "dbInit.accounts[%d] (%s): set password or existingSecret" $i $a.username) -}}
+{{- end -}}
+{{- if not $a.existingSecret -}}
+{{- $inlineAccounts = append $inlineAccounts $i -}}
+{{- end -}}
+{{- end -}}
+{{- if $inlineAccounts }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ printf "%s-accounts" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-init
+type: Opaque
+stringData:
+  {{- range $i := $inlineAccounts }}
+  {{ printf "account-%d" $i }}: {{ (index $.Values.dbInit.accounts $i).password | toString | quote }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "cmangos.dbInitJobName" . }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-init
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      {{- include "cmangos.podMetadata" (dict "ctx" . "component" "db-init") | nindent 6 }}
+    spec:
+      {{- include "cmangos.pullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: db-init
+          image: {{ include "cmangos.image" (dict "ctx" . "component" "db") }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["/usr/local/bin/cmangos-db-init"]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: DB_HOST
+              value: {{ include "cmangos.db.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "cmangos.db.port" . | quote }}
+            - name: DB_USER
+              value: {{ .Values.database.user | quote }}
+            {{- include "cmangos.db.passwordEnv" . | nindent 12 }}
+            {{- if $adminUser }}
+            - name: DB_ADMIN_USER
+              value: {{ $adminUser | quote }}
+            - name: DB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cmangos.db.secretName" . }}
+                  key: {{ include "cmangos.db.adminPasswordKey" . }}
+            {{- end }}
+            - name: DB_WORLD
+              value: {{ $names.world | quote }}
+            - name: DB_CHARACTERS
+              value: {{ $names.characters | quote }}
+            - name: DB_REALMD
+              value: {{ $names.realmd | quote }}
+            - name: DB_LOGS
+              value: {{ $names.logs | quote }}
+            - name: WORLD_REINSTALL
+              value: {{ .Values.dbInit.world.reinstall | quote }}
+            - name: WORLD_LOCALES
+              value: {{ ternary "YES" "NO" .Values.dbInit.world.locales | quote }}
+            - name: WORLD_DEV_UPDATES
+              value: {{ ternary "YES" "NO" .Values.dbInit.world.devUpdates | quote }}
+            {{- if .Values.dbInit.world.extraSql }}
+            - name: WORLD_EXTRA_SQL_DIR
+              value: /etc/cmangos/world-sql
+            {{- end }}
+            - name: REALM_ID
+              value: {{ .Values.dbInit.realm.id | int | quote }}
+            - name: REALM_NAME
+              value: {{ .Values.dbInit.realm.name | quote }}
+            - name: REALM_ADDRESS
+              value: {{ .Values.dbInit.realm.address | quote }}
+            - name: REALM_PORT
+              value: {{ include "cmangos.realmPort" . | quote }}
+            - name: REMOVE_DEFAULT_ACCOUNTS
+              value: {{ ternary "1" "0" .Values.dbInit.removeDefaultAccounts | quote }}
+            {{- range $i, $a := .Values.dbInit.accounts }}
+            - name: {{ printf "ACCOUNT_%d_USERNAME" $i }}
+              value: {{ $a.username | quote }}
+            - name: {{ printf "ACCOUNT_%d_PASSWORD" $i }}
+              valueFrom:
+                secretKeyRef:
+                  {{- if $a.existingSecret }}
+                  name: {{ $a.existingSecret }}
+                  key: {{ $a.passwordKey | default "password" }}
+                  {{- else }}
+                  name: {{ printf "%s-accounts" $fullname }}
+                  key: {{ printf "account-%d" $i }}
+                  {{- end }}
+            - name: {{ printf "ACCOUNT_%d_GMLEVEL" $i }}
+              value: {{ $a.gmlevel | default 0 | int | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.dbInit.world.extraSql }}
+            - name: world-sql
+              mountPath: /etc/cmangos/world-sql
+              readOnly: true
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.dbInit.resources | nindent 12 }}
+      volumes:
+        # A working copy of classic-db plus the unpacked world dump.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
+        {{- if .Values.dbInit.world.extraSql }}
+        - name: world-sql
+          configMap:
+            name: {{ printf "%s-world-sql" $fullname }}
+        {{- end }}
+{{- end }}

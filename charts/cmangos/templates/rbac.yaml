@@ -1,0 +1,35 @@
+{{- if .Values.dbInit.enabled -}}
+# The server pods wait for the db-init Job of their release revision. This
+# is the smallest RBAC that `kubectl wait` needs for that.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "cmangos.serviceAccountName" . }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "cmangos.serviceAccountName" . }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "cmangos.serviceAccountName" . }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "cmangos.serviceAccountName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "cmangos.serviceAccountName" . }}
+{{- end }}

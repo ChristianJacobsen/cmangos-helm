@@ -1,0 +1,61 @@
+{{- $ns := .Release.Namespace -}}
+{{- $fullname := include "cmangos.fullname" . -}}
+CMaNGOS Classic ({{ .Chart.Name }} {{ .Chart.Version }}), game client 1.12.1 (build 5875)
+
+THE FIRST INSTALL TAKES A WHILE:
+{{- if eq .Values.clientData.source "extract" }}
+  1. client-data Job: extracts dbc, maps{{ if .Values.clientData.extract.vmaps }}, vmaps{{ end }}{{ if .Values.clientData.extract.mmaps }} and mmaps (the slowest step){{ end }}
+{{- else if eq .Values.clientData.source "download" }}
+  1. client-data Job: downloads and unpacks {{ .Values.clientData.download.url }}
+{{- else }}
+  1. client data: none (the data volume must hold dbc, maps, vmaps and mmaps already)
+{{- end }}
+{{- if .Values.dbInit.enabled }}
+  2. db-init Job: installs the world database and applies the updates (a few minutes)
+{{- end }}
+  3. mangosd waits for both, then loads the world
+
+Watch the progress:
+  kubectl -n {{ $ns }} get pods -w
+{{- if ne .Values.clientData.source "none" }}
+  kubectl -n {{ $ns }} logs -f job/{{ include "cmangos.clientDataJobName" . }}
+{{- end }}
+{{- if .Values.dbInit.enabled }}
+  kubectl -n {{ $ns }} logs -f job/{{ include "cmangos.dbInitJobName" . }}
+{{- end }}
+
+CONNECT A GAME CLIENT (1.12.1):
+  kubectl -n {{ $ns }} get svc {{ $fullname }}-realmd {{ $fullname }}-mangosd
+  1. Set realmlist.wtf in the client folder: set realmlist <realmd address>
+  2. The realm list sends clients to {{ .Values.dbInit.realm.address }}:{{ include "cmangos.realmPort" . }}
+     (dbInit.realm.address and dbInit.realm.port). That must be an address
+     where the client reaches mangosd. For LAN or WAN players, run:
+     helm upgrade {{ .Release.Name }} <chart> -n {{ $ns }} --reuse-values --set dbInit.realm.address=<LAN or WAN IP>
+
+ACCOUNTS:
+{{- if .Values.dbInit.accounts }}
+  The db-init Job creates these accounts when they do not exist:
+{{- range .Values.dbInit.accounts }}
+    {{ .username | upper }} (gmlevel {{ .gmlevel | default 0 }})
+{{- end }}
+{{- else }}
+  No accounts configured (dbInit.accounts). Create one in the mangosd console:
+    kubectl -n {{ $ns }} attach -it deploy/{{ $fullname }}-mangosd -c mangosd
+    account create <user> <password>
+    account set gmlevel <user> 3
+  Detach with ctrl-p ctrl-q. Do not press ctrl-c: it stops mangosd.
+{{- end }}
+{{- if .Values.dbInit.removeDefaultAccounts }}
+  The default accounts (ADMINISTRATOR, GAMEMASTER, MODERATOR, PLAYER) are
+  removed from a fresh realmd database.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+
+GATEWAY API: the chart created one TCPRoute per game port. Point
+realmlist.wtf and dbInit.realm.address at the Gateway address. You can set
+realmd.service.type=ClusterIP and mangosd.service.type=ClusterIP.
+{{- end }}
+{{- if .Values.playerbots.enabled }}
+
+PLAYERBOTS: enabled with {{ index .Values.playerbots.config "AiPlayerbot.MaxRandomBots" | default "the default number of" }} random bots.
+{{- end }}

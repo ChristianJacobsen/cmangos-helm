@@ -1,0 +1,25 @@
+apiVersion: v2
+name: cmangos
+description: |-
+  CMaNGOS Classic (World of Warcraft 1.12.1 private server): realmd, mangosd,
+  MySQL, database installation, and client-data extraction. Playerbots and the
+  auction house bot are compiled into the images and off by default.
+type: application
+version: 0.1.0
+appVersion: "classic"
+keywords:
+  - cmangos
+  - mangos
+  - wow
+  - vanilla
+  - classic
+  - game-server
+home: https://github.com/ChristianJacobsen/cmangos-helm
+sources:
+  - https://github.com/ChristianJacobsen/cmangos-helm
+  - https://github.com/cmangos/mangos-classic
+  - https://github.com/cmangos/classic-db
+  - https://github.com/cmangos/playerbots
+maintainers:
+  - name: ChristianJacobsen
+    url: https://github.com/ChristianJacobsen

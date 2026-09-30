@@ -1,0 +1,217 @@
+{{- $fullname := include "cmangos.fullname" . -}}
+{{- $names := .Values.database.names -}}
+{{- $cd := .Values.clientData -}}
+{{- $soap := .Values.mangosd.soap -}}
+{{- $ra := .Values.mangosd.remoteAccess -}}
+{{- $defaults := dict
+  "LoginDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" $names.realmd))
+  "WorldDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" $names.world))
+  "CharacterDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" $names.characters))
+  "LogsDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" $names.logs))
+  "RealmID" (.Values.dbInit.realm.id | int)
+  "DataDir" "/opt/cmangos/data"
+  "LogsDir" "/opt/cmangos/logs"
+  "WorldServerPort" 8085
+  "BindIP" "0.0.0.0"
+  "Console.Enable" 1
+  "SOAP.Enabled" (ternary 1 0 $soap.enabled)
+  "SOAP.IP" "0.0.0.0"
+  "SOAP.Port" ($soap.port | int)
+  "Ra.Enable" (ternary 1 0 $ra.enabled)
+  "Ra.IP" "0.0.0.0"
+  "Ra.Port" ($ra.port | int)
+  "LogFile" ""
+  "CharLogFile" ""
+  "DBErrorLogFile" ""
+  "EventAIErrorLogFile" ""
+  "SD2ErrorLogFile" ""
+-}}
+{{- /* Match the server settings to the data that the Job extracts. */ -}}
+{{- if eq $cd.source "extract" -}}
+{{- if not $cd.extract.vmaps -}}
+{{- $_ := set $defaults "vmap.enableLOS" 0 -}}
+{{- $_ := set $defaults "vmap.enableHeight" 0 -}}
+{{- $_ := set $defaults "vmap.enableIndoorCheck" 0 -}}
+{{- end -}}
+{{- if not $cd.extract.mmaps -}}
+{{- $_ := set $defaults "mmap.enabled" 0 -}}
+{{- end -}}
+{{- end -}}
+{{- if not .Values.ahbot.enabled -}}
+{{- $_ := set $defaults "AuctionHouseBot.Chance.Sell" 0 -}}
+{{- $_ := set $defaults "AuctionHouseBot.Chance.Buy" 0 -}}
+{{- end -}}
+{{- $config := merge (deepCopy .Values.mangosd.config) (deepCopy .Values.ahbot.config) $defaults -}}
+{{- $bots := merge (dict "AiPlayerbot.Enabled" (ternary 1 0 .Values.playerbots.enabled)) (deepCopy .Values.playerbots.config) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-mangosd" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mangosd
+  {{- with .Values.mangosd.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.mangosd.service.type }}
+  {{- if and (ne .Values.mangosd.service.type "ClusterIP") .Values.mangosd.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.mangosd.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    - name: world
+      port: {{ .Values.mangosd.service.port }}
+      targetPort: world
+      {{- if and (ne .Values.mangosd.service.type "ClusterIP") .Values.mangosd.service.nodePort }}
+      nodePort: {{ .Values.mangosd.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "cmangos.selectorLabels" (dict "ctx" . "component" "mangosd") | nindent 4 }}
+{{- if or $soap.enabled $ra.enabled }}
+---
+# Both consoles give GM access, so they stay on a ClusterIP service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-mangosd-admin" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mangosd
+spec:
+  type: ClusterIP
+  ports:
+    {{- if $soap.enabled }}
+    - name: soap
+      port: {{ $soap.port }}
+      targetPort: soap
+    {{- end }}
+    {{- if $ra.enabled }}
+    - name: ra
+      port: {{ $ra.port }}
+      targetPort: ra
+    {{- end }}
+  selector:
+    {{- include "cmangos.selectorLabels" (dict "ctx" . "component" "mangosd") | nindent 4 }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-mangosd" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mangosd
+spec:
+  replicas: 1
+  progressDeadlineSeconds: {{ .Values.mangosd.progressDeadlineSeconds }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "cmangos.selectorLabels" (dict "ctx" . "component" "mangosd") | nindent 6 }}
+  template:
+    metadata:
+      {{- include "cmangos.podMetadata" (dict "ctx" . "component" "mangosd") | nindent 6 }}
+    spec:
+      {{- include "cmangos.pullSecrets" . | nindent 6 }}
+      {{- if .Values.dbInit.enabled }}
+      serviceAccountName: {{ include "cmangos.serviceAccountName" . }}
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.mangosd.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "cmangos.waitDbInit" . | nindent 8 }}
+        {{- if ne $cd.source "none" }}
+        - name: wait-client-data
+          image: {{ include "cmangos.image" (dict "ctx" . "component" "server") }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command:
+            - sh
+            - -c
+            # The trap and the background sleep let the pod stop at once.
+            - >-
+              poll_seconds=30;
+              trap 'exit 143' TERM INT;
+              until [ -f /opt/cmangos/data/.cmangos/ready ]; do
+              echo "waiting for the client-data Job (kubectl logs job/{{ include "cmangos.clientDataJobName" . }})";
+              sleep "$poll_seconds" & wait $!; done;
+              echo "client data ready: $(cat /opt/cmangos/data/.cmangos/ready)"
+          volumeMounts:
+            - name: data
+              mountPath: /opt/cmangos/data
+              readOnly: true
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+        {{- end }}
+      containers:
+        - name: mangosd
+          image: {{ include "cmangos.image" (dict "ctx" . "component" "server") }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command:
+            - /opt/cmangos/bin/mangosd
+            - --config
+            - /opt/cmangos/etc/mangosd.conf
+            - --ahbot
+            - /opt/cmangos/etc/ahbot.conf
+            - --aiplayerbot
+            - /opt/cmangos/etc/aiplayerbot.conf
+          # The mangosd console reads stdin: kubectl attach -it deploy/{{ $fullname }}-mangosd
+          stdin: true
+          tty: true
+          env:
+            {{- include "cmangos.db.passwordEnv" . | nindent 12 }}
+            {{- include "cmangos.confEnv" (dict "prefix" "Mangosd_" "config" $config) | trim | nindent 12 }}
+            {{- include "cmangos.confEnv" (dict "prefix" "PlayerBots_" "config" $bots) | trim | nindent 12 }}
+            {{- with .Values.mangosd.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: world
+              containerPort: 8085
+            {{- if $soap.enabled }}
+            - name: soap
+              containerPort: {{ $soap.port }}
+            {{- end }}
+            {{- if $ra.enabled }}
+            - name: ra
+              containerPort: {{ $ra.port }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: world
+            periodSeconds: {{ .Values.mangosd.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.mangosd.startupProbe.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: world
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /opt/cmangos/data
+              readOnly: true
+            - name: logs
+              mountPath: /opt/cmangos/logs
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.mangosd.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- include "cmangos.dataVolume" . | nindent 10 }}
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

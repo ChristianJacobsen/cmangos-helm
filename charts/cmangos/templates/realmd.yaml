@@ -1,0 +1,100 @@
+{{- $fullname := include "cmangos.fullname" . -}}
+{{- $defaults := dict
+  "LoginDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" .Values.database.names.realmd))
+  "LogsDir" "/opt/cmangos/logs"
+  "LogFile" ""
+  "RealmServerPort" 3724
+  "BindIP" "0.0.0.0"
+-}}
+{{- $config := merge (deepCopy .Values.realmd.config) $defaults -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-realmd" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realmd
+  {{- with .Values.realmd.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.realmd.service.type }}
+  {{- if and (ne .Values.realmd.service.type "ClusterIP") .Values.realmd.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.realmd.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    - name: auth
+      port: {{ .Values.realmd.service.port }}
+      targetPort: auth
+      {{- if and (ne .Values.realmd.service.type "ClusterIP") .Values.realmd.service.nodePort }}
+      nodePort: {{ .Values.realmd.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "cmangos.selectorLabels" (dict "ctx" . "component" "realmd") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-realmd" $fullname }}
+  labels:
+    {{- include "cmangos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realmd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "cmangos.selectorLabels" (dict "ctx" . "component" "realmd") | nindent 6 }}
+  template:
+    metadata:
+      {{- include "cmangos.podMetadata" (dict "ctx" . "component" "realmd") | nindent 6 }}
+    spec:
+      {{- include "cmangos.pullSecrets" . | nindent 6 }}
+      {{- if .Values.dbInit.enabled }}
+      serviceAccountName: {{ include "cmangos.serviceAccountName" . }}
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "cmangos.waitDbInit" . | nindent 8 }}
+      containers:
+        - name: realmd
+          image: {{ include "cmangos.image" (dict "ctx" . "component" "server") }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["/opt/cmangos/bin/realmd", "-c", "/opt/cmangos/etc/realmd.conf"]
+          env:
+            {{- include "cmangos.db.passwordEnv" . | nindent 12 }}
+            {{- include "cmangos.confEnv" (dict "prefix" "Realmd_" "config" $config) | trim | nindent 12 }}
+            {{- with .Values.realmd.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: auth
+              containerPort: 3724
+          startupProbe:
+            tcpSocket:
+              port: auth
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            tcpSocket:
+              port: auth
+            periodSeconds: 20
+          volumeMounts:
+            - name: logs
+              mountPath: /opt/cmangos/logs
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.realmd.resources | nindent 12 }}
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

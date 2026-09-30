@@ -1,0 +1,335 @@
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+podLabels: {}
+
+imagePullSecrets: []
+imagePullPolicy: IfNotPresent
+
+# CMaNGOS publishes no images. The images workflow of this repository pins its
+# latest build below through a pull request.
+images:
+  # -- mangosd, realmd and the client-data extractors (target "server").
+  server:
+    registry: ghcr.io
+    repository: christianjacobsen/cmangos-classic-server
+    tag: ""
+    digest: ""
+  # -- Database installer (target "db"). Must come from the same build as
+  # the server image, because the SQL updates track the core revision.
+  db:
+    registry: ghcr.io
+    repository: christianjacobsen/cmangos-classic-db
+    tag: ""
+    digest: ""
+  # -- kubectl, for the init containers that wait for the db-init Job.
+  # renovate: datasource=docker depName=alpine/k8s
+  kubectl:
+    registry: docker.io
+    repository: alpine/k8s
+    tag: 1.35.8
+    digest: ""
+
+# -- The images run as uid 1000 (APP_UID in build/Dockerfile).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+database:
+  # -- Database user for mangosd, realmd and the db-init Job. The db-init Job
+  # creates it when it has admin access (bundled MySQL, or
+  # externalDatabase.adminUser).
+  user: mangos
+  # -- Password of `user`. Empty = the chart generates one and keeps it
+  # across upgrades. Do not use ";": it separates the fields of the CMaNGOS
+  # database connection strings.
+  password: ""
+  # -- Existing Secret with the passwords. Keys: `password` (for `user`),
+  # `root-password` (bundled MySQL) or `admin-password` (external database
+  # with adminUser). Overrides the password values above.
+  existingSecret: ""
+  names:
+    world: classicmangos
+    characters: classiccharacters
+    realmd: classicrealmd
+    logs: classiclogs
+
+mysql:
+  # -- false = use `externalDatabase`.
+  enabled: true
+  # renovate: datasource=docker depName=library/mysql
+  image:
+    registry: docker.io
+    repository: library/mysql
+    tag: 8.4.11
+    digest: ""
+  # -- Root password. Empty = generated and kept across upgrades. MySQL reads
+  # it only when it initializes an empty data directory.
+  rootPassword: ""
+  # -- Extra mysqld arguments.
+  # --skip-log-bin: MySQL 8.4 keeps a binary log (for replication) by
+  #   default and flushes it to disk on every statement. A world install
+  #   writes about 400 MB of it, and the playerbots equipment cache (one
+  #   statement per row) gets very slow.
+  # --innodb-flush-log-at-trx-commit=2: flush the InnoDB log once a second
+  #   instead of at every commit. A MySQL crash loses nothing. A node crash
+  #   can lose the last second of writes.
+  extraArgs:
+    - --innodb-buffer-pool-size=512M
+    - --skip-log-bin
+    - --innodb-flush-log-at-trx-commit=2
+  storage:
+    size: 10Gi
+    # -- Empty = the default StorageClass of the cluster.
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      # -- The world database import needs headroom above the buffer pool.
+      memory: 2Gi
+
+externalDatabase:
+  # -- Used only when mysql.enabled=false.
+  host: ""
+  port: 3306
+  # -- Admin user that can create databases and users. The db-init Job uses
+  # it to create the four databases and database.user. Empty = the
+  # databases and the user exist already, and database.user owns them.
+  adminUser: ""
+
+clientData:
+  # -- Where the extracted data lives (mounted at /opt/cmangos/data). The
+  # first match wins:
+  # 1. volume: any Kubernetes volume source, for example nfs or hostPath.
+  # 2. existingClaim: a PVC that you manage.
+  # 3. Neither: the chart creates a PVC from `storage`. The chart keeps that
+  #    PVC on `helm uninstall`, because the extraction takes a long time.
+  volume: {}
+  existingClaim: ""
+  storage:
+    size: 10Gi
+    storageClass: ""
+    accessModes: ["ReadWriteOnce"]
+  # -- How the client-data Job fills the volume:
+  # extract   run the extractors against a 1.12.x client (clientData.extract)
+  # download  download an archive of data that you extracted before (clientData.download)
+  # none      no Job. The volume already holds dbc/, maps/, vmaps/ and mmaps/.
+  source: extract
+  extract:
+    # -- Set clientVolume or clientUrl. clientVolume: any Kubernetes volume
+    # source (for example persistentVolumeClaim, nfs or hostPath) with the
+    # client folder, the folder that contains Data/.
+    clientVolume: {}
+    # -- Folder inside clientVolume that contains Data/.
+    clientSubPath: ""
+    # -- URL of a .tar, .tar.gz, .tgz, .tar.xz, .tar.bz2 or .zip archive of
+    # the client folder. Used when clientVolume is empty. The Job downloads
+    # it into scratchVolume only when the maps or vmaps are missing, and it
+    # deletes it at the end. Keep the URL private: the client is copyrighted.
+    clientUrl: ""
+    # -- Space for the unpacked client (about 5 GB). Tar archives stream,
+    # zip archives need space for the archive too. Any volume source works,
+    # for example a generic ephemeral volume on nodes with little disk.
+    scratchVolume:
+      emptyDir:
+        sizeLimit: 12Gi
+    # -- vmaps: line of sight and height checks.
+    vmaps: true
+    # -- mmaps: creature path finding. The slowest step.
+    mmaps: true
+    # -- Threads for the mmap generator. 0 = one per CPU of the node.
+    mmapThreads: 0
+    highResMaps: false
+    highResVmaps: false
+  download:
+    # -- URL of a .tar, .tar.gz, .tgz, .tar.xz, .tar.bz2 or .zip archive with
+    # dbc/, maps/, vmaps/ and mmaps/ at the top level (or inside one
+    # top-level folder).
+    url: ""
+  # -- Discard the progress markers and populate the volume again. Set it
+  # for one upgrade only.
+  force: false
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      # -- The mmap generator uses about 0.5-1 GiB per thread on the large
+      # continents.
+      memory: 8Gi
+
+dbInit:
+  # -- Run the db-init Job on every install and upgrade. It creates and
+  # migrates the databases, and it sets the realm and the accounts below.
+  enabled: true
+  world:
+    # -- onChange: reinstall the world database when the image carries new
+    # world content (classic-db, core base SQL, scripts, playerbots).
+    # never: install the world database only when it is empty. The core
+    # updates still apply.
+    # A reinstall discards manual world changes (for example .npc add).
+    # Put those in extraSql.
+    reinstall: onChange
+    # -- Install the translated names (non-English clients).
+    locales: false
+    # -- Apply the classic-db dev/ updates (work in progress upstream).
+    devUpdates: false
+    # -- SQL files that run in name order after every world install.
+    # extraSql:
+    #   10-my-spawns.sql: |
+    #     INSERT INTO creature ...
+    extraSql: {}
+  realm:
+    id: 1
+    # -- Realm name in the realm list. Empty = keep the name in the database.
+    name: "CMaNGOS"
+    # -- Address that game clients use to reach mangosd. 127.0.0.1 works when
+    # you play on the machine that exposes the service. For LAN or WAN
+    # players, set the LAN or WAN address (or the Gateway address).
+    address: 127.0.0.1
+    # -- Port that game clients use to reach mangosd. null = the mangosd
+    # service port, or its nodePort when the service type is NodePort and a
+    # nodePort is set.
+    port: null
+  # -- Delete ADMINISTRATOR, GAMEMASTER, MODERATOR and PLAYER from a fresh
+  # realmd database. Their passwords are the user names.
+  removeDefaultAccounts: true
+  # -- Accounts to create when they do not exist. The Job never changes the
+  # password of an existing account. It sets gmlevel on every run
+  # (0 player, 1 moderator, 2 game master, 3 administrator).
+  # Names and passwords: 16 characters at most, not case-sensitive.
+  # accounts:
+  #   - username: admin
+  #     password: changeme
+  #     gmlevel: 3
+  #   - username: admin2
+  #     existingSecret: my-accounts
+  #     passwordKey: admin2-password
+  #     gmlevel: 3
+  accounts: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+realmd:
+  # -- realmd.conf keys, verbatim from realmd.conf.dist. The chart renders
+  # each key as a Realmd_<key> environment variable. Example:
+  #   config:
+  #     WrongPass.MaxCount: 5
+  config: {}
+  extraEnv: []
+  service:
+    # -- LoadBalancer exposes the standard game ports. Clients expect the
+    # auth port 3724.
+    type: LoadBalancer
+    port: 3724
+    # -- null = let Kubernetes allocate.
+    nodePort: null
+    annotations: {}
+    externalTrafficPolicy: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+mangosd:
+  # -- mangosd.conf keys, verbatim from mangosd.conf.dist. The chart renders
+  # each key as a Mangosd_<key> environment variable. Example:
+  #   config:
+  #     Rate.XP.Kill: 3
+  #     GameType: 1
+  # The chart turns off the log files (the servers log to stdout). To keep a
+  # file, set its key, for example LogFile: Server.log. Files go to an
+  # emptyDir at /opt/cmangos/logs.
+  config: {}
+  extraEnv: []
+  soap:
+    # -- SOAP remote console (ClusterIP service only). Log in with a GM
+    # account (gmlevel 3).
+    enabled: false
+    port: 7878
+  remoteAccess:
+    # -- Telnet remote console (ClusterIP service only), for example through
+    # kubectl port-forward.
+    enabled: false
+    port: 3443
+  service:
+    type: LoadBalancer
+    port: 8085
+    nodePort: null
+    annotations: {}
+    externalTrafficPolicy: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      # -- Raise it when you enable playerbots.
+      memory: 4Gi
+  startupProbe:
+    periodSeconds: 10
+    # -- The world loads in seconds, but with playerbots the first start
+    # builds an equipment cache in the characters database for minutes. If
+    # the probe kills mangosd during that build, the cache stays incomplete.
+    failureThreshold: 180
+  # -- The rollout includes the wait for the client-data Job, which takes
+  # hours on slow nodes.
+  progressDeadlineSeconds: 7200
+  # -- mangosd saves all players on SIGTERM.
+  terminationGracePeriodSeconds: 60
+
+playerbots:
+  # -- Enable the playerbots module (AiPlayerbot.Enabled).
+  enabled: false
+  # -- aiplayerbot.conf keys (PlayerBots_<key> environment variables). The
+  # chart lowers the random bot count from 1000 to 50. Raise
+  # mangosd.resources for more bots.
+  config:
+    AiPlayerbot.MinRandomBots: 50
+    AiPlayerbot.MaxRandomBots: 50
+
+ahbot:
+  # -- Enable the auction house bot. Off = the chart sets
+  # AuctionHouseBot.Chance.Sell and AuctionHouseBot.Chance.Buy to 0.
+  enabled: false
+  # -- ahbot.conf keys (rendered as Mangosd_<key>, the prefix that the core
+  # uses for this file).
+  config: {}
+
+# -- Expose the game ports through Gateway API TCPRoutes. Requires the
+# experimental-channel Gateway API CRDs (TCPRoute) and a Gateway controller
+# that supports TCPRoute. Ingress cannot route the game protocols, because
+# they are raw TCP.
+gateway:
+  enabled: false
+  # -- Gateways or listeners for the routes. Each game port needs a TCP
+  # listener on the Gateway. Example:
+  #   parentRefs:
+  #     realmd:
+  #       - name: games
+  #         namespace: gateway-system
+  #         sectionName: wow-auth
+  #     mangosd:
+  #       - name: games
+  #         namespace: gateway-system
+  #         sectionName: wow-world
+  parentRefs:
+    realmd: []
+    mangosd: []
+  annotations: {}

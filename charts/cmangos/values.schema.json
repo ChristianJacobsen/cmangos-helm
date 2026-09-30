@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "cmangos chart values",
+  "type": "object",
+  "definitions": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "registry": { "type": "string" },
+        "repository": { "type": "string" },
+        "tag": { "type": ["string", "number"] },
+        "digest": { "type": "string" }
+      }
+    },
+    "confMap": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "nodePort": { "type": ["integer", "null"], "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object" },
+        "externalTrafficPolicy": { "type": "string", "enum": ["", "Cluster", "Local"] }
+      }
+    },
+    "parentRefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "namespace": { "type": "string" },
+          "sectionName": { "type": "string" },
+          "port": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "properties": {
+    "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+    "imagePullSecrets": { "type": "array" },
+    "images": {
+      "type": "object",
+      "properties": {
+        "server": { "$ref": "#/definitions/image" },
+        "db": { "$ref": "#/definitions/image" },
+        "kubectl": { "$ref": "#/definitions/image" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "user": { "type": "string", "minLength": 1 },
+        "password": { "type": "string" },
+        "existingSecret": { "type": "string" },
+        "names": {
+          "type": "object",
+          "properties": {
+            "world": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
+            "characters": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
+            "realmd": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
+            "logs": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "$ref": "#/definitions/image" },
+        "rootPassword": { "type": "string" },
+        "extraArgs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "adminUser": { "type": "string" }
+      }
+    },
+    "clientData": {
+      "type": "object",
+      "properties": {
+        "volume": { "type": "object" },
+        "existingClaim": { "type": "string" },
+        "source": { "type": "string", "enum": ["extract", "download", "none"] },
+        "extract": {
+          "type": "object",
+          "properties": {
+            "clientVolume": { "type": "object" },
+            "clientSubPath": { "type": "string" },
+            "clientUrl": { "type": "string" },
+            "scratchVolume": { "type": "object" },
+            "vmaps": { "type": "boolean" },
+            "mmaps": { "type": "boolean" },
+            "mmapThreads": { "type": "integer", "minimum": 0 },
+            "highResMaps": { "type": "boolean" },
+            "highResVmaps": { "type": "boolean" }
+          }
+        },
+        "download": {
+          "type": "object",
+          "properties": { "url": { "type": "string" } }
+        },
+        "force": { "type": "boolean" }
+      }
+    },
+    "dbInit": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "world": {
+          "type": "object",
+          "properties": {
+            "reinstall": { "type": "string", "enum": ["onChange", "never"] },
+            "locales": { "type": "boolean" },
+            "devUpdates": { "type": "boolean" },
+            "extraSql": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "realm": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "name": { "type": "string", "maxLength": 32 },
+            "address": { "type": "string", "maxLength": 32 },
+            "port": { "type": ["integer", "null"], "minimum": 1, "maximum": 65535 }
+          }
+        },
+        "removeDefaultAccounts": { "type": "boolean" },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["username"],
+            "properties": {
+              "username": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,16}$" },
+              "password": { "type": ["string", "number"] },
+              "existingSecret": { "type": "string" },
+              "passwordKey": { "type": "string" },
+              "gmlevel": { "type": "integer", "minimum": 0, "maximum": 3 }
+            }
+          }
+        }
+      }
+    },
+    "realmd": {
+      "type": "object",
+      "properties": {
+        "config": { "$ref": "#/definitions/confMap" },
+        "extraEnv": { "type": "array" },
+        "service": { "$ref": "#/definitions/service" }
+      }
+    },
+    "mangosd": {
+      "type": "object",
+      "properties": {
+        "config": { "$ref": "#/definitions/confMap" },
+        "extraEnv": { "type": "array" },
+        "service": { "$ref": "#/definitions/service" },
+        "soap": {
+          "type": "object",
+          "properties": { "enabled": { "type": "boolean" }, "port": { "type": "integer" } }
+        },
+        "remoteAccess": {
+          "type": "object",
+          "properties": { "enabled": { "type": "boolean" }, "port": { "type": "integer" } }
+        }
+      }
+    },
+    "playerbots": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "config": { "$ref": "#/definitions/confMap" }
+      }
+    },
+    "ahbot": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "config": { "$ref": "#/definitions/confMap" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "parentRefs": {
+          "type": "object",
+          "properties": {
+            "realmd": { "$ref": "#/definitions/parentRefs" },
+            "mangosd": { "$ref": "#/definitions/parentRefs" }
+          }
+        },
+        "annotations": { "type": "object" }
+      }
+    }
+  }
+}
