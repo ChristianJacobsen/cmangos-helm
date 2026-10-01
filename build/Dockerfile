@@ -90,6 +90,8 @@ RUN set -eux; \
 ENV Mangosd_DataDir=/opt/cmangos/data \
     Mangosd_LogsDir=/opt/cmangos/logs \
     Realmd_LogsDir=/opt/cmangos/logs
+# The playerbots module reads ../etc/aiplayerbot.conf relative to the working
+# directory.
 WORKDIR /opt/cmangos/bin
 USER ${APP_UID}:${APP_UID}
 EXPOSE 3724 8085
