@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Print SQL that creates CMaNGOS realmd accounts from environment variables.
 
-Input: ACCOUNT_<n>_USERNAME, ACCOUNT_<n>_PASSWORD and ACCOUNT_<n>_GMLEVEL for
-n = 0, 1, 2, ... (the first missing username ends the list).
+Input: CMANGOS_EXPANSION, and ACCOUNT_<n>_USERNAME, ACCOUNT_<n>_PASSWORD and
+ACCOUNT_<n>_GMLEVEL for n = 0, 1, 2, ... (the first missing username ends the
+list).
 
 The script creates an account only when the username does not exist. It
-always sets the GM level. It never changes the password of an account that
-exists, because players can change their passwords in the game.
+always sets the GM level, and the expansion level to the highest that the core
+supports. It never changes the password of an account that exists, because
+players can change their passwords in the game.
 
 The verifier follows AccountMgr::CreateAccount and SRP6::CalculateVerifier in
 the core. --self-test checks it against the default accounts in
@@ -27,6 +29,9 @@ SALT_BYTES = 32
 MAX_ACCOUNT_STR = 16
 USERNAME_RE = re.compile(rf"^[A-Z0-9_-]{{1,{MAX_ACCOUNT_STR}}}$")
 MAX_GMLEVEL = 3                     # SEC_ADMINISTRATOR
+# MAX_EXPANSION in src/game/Globals/SharedDefines.h. The column defaults to 0,
+# and a level-0 account cannot create the races and classes of TBC or WotLK.
+EXPANSION_LEVELS = {"classic": 0, "tbc": 1, "wotlk": 2}
 
 
 def verifier(username: str, password: str, salt_hex: str) -> str:
@@ -67,6 +72,11 @@ def main() -> None:
         self_test()
         return
 
+    expansion = os.environ.get("CMANGOS_EXPANSION", "")
+    if expansion not in EXPANSION_LEVELS:
+        sys.exit(f"CMANGOS_EXPANSION must be one of {', '.join(EXPANSION_LEVELS)}")
+    level = EXPANSION_LEVELS[expansion]
+
     n = 0
     while True:
         prefix = f"ACCOUNT_{n}_"
@@ -91,12 +101,12 @@ def main() -> None:
         salt = new_salt()
         v = verifier(username, password, salt)
         print(
-            "INSERT INTO account (username, gmlevel, v, s, joindate) "
-            f"SELECT '{username}', {int(gmlevel)}, '{v}', '{salt}', NOW() FROM DUAL "
+            "INSERT INTO account (username, gmlevel, expansion, v, s, joindate) "
+            f"SELECT '{username}', {int(gmlevel)}, {level}, '{v}', '{salt}', NOW() FROM DUAL "
             f"WHERE NOT EXISTS (SELECT 1 FROM account WHERE username = '{username}');"
         )
-        print(f"UPDATE account SET gmlevel = {int(gmlevel)} WHERE username = '{username}';")
-        print(f"account {username}: gmlevel {gmlevel}", file=sys.stderr)
+        print(f"UPDATE account SET gmlevel = {int(gmlevel)}, expansion = {level} WHERE username = '{username}';")
+        print(f"account {username}: gmlevel {gmlevel}, expansion {level}", file=sys.stderr)
         n += 1
 
 

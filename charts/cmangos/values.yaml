@@ -236,8 +236,9 @@ dbInit:
   # realmd database. Their passwords are the user names.
   removeDefaultAccounts: true
   # -- Accounts to create when they do not exist. The Job never changes the
-  # password of an existing account. It sets gmlevel on every run
-  # (0 player, 1 moderator, 2 game master, 3 administrator).
+  # password of an existing account. On every run, it sets gmlevel (0 player,
+  # 1 moderator, 2 game master, 3 administrator) and the expansion level (the
+  # highest of the expansion).
   # Names and passwords: 16 characters at most, not case-sensitive.
   # accounts:
   #   - username: admin

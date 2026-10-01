@@ -60,9 +60,9 @@ annotations:
 
 {{- define "cmangos.client" -}}
 {{- $clients := dict
-  "classic" (dict "name" "Classic" "version" "1.12.1" "build" 5875)
-  "tbc" (dict "name" "The Burning Crusade" "version" "2.4.3" "build" 8606)
-  "wotlk" (dict "name" "Wrath of the Lich King" "version" "3.3.5a" "build" 12340)
+  "classic" (dict "name" "Classic" "version" "1.12.1" "build" 5875 "level" 0)
+  "tbc" (dict "name" "The Burning Crusade" "version" "2.4.3" "build" 8606 "level" 1)
+  "wotlk" (dict "name" "Wrath of the Lich King" "version" "3.3.5a" "build" 12340 "level" 2)
 -}}
 {{- $client := index $clients .Values.expansion -}}
 {{- if not $client -}}

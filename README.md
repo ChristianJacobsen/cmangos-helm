@@ -225,15 +225,17 @@ dbInit:
       passwordKey: friend-password
 ```
 
-If an account does not exist, the Job creates it. The Job never changes the password of an existing account, because players can change their password in the game. It sets `gmlevel` on every run. Names and passwords have 16 characters at most, and they are not case-sensitive.
+If an account does not exist, the Job creates it. The Job never changes the password of an existing account, because players can change their password in the game. It sets `gmlevel` on every run. It also sets the expansion level of the account: 0 for Classic, 1 for TBC, and 2 for WotLK. An account with a lower level cannot create the races and classes of the expansion. Names and passwords have 16 characters at most, and they are not case-sensitive.
 
 You can also use the `mangosd` console:
 
 ```sh
 kubectl -n cmangos attach -it deploy/cmangos-mangosd -c mangosd
-account create <user> <password>
+account create <user> <password> <level>
 account set gmlevel <user> 3
 ```
+
+`<level>` is the expansion level. Without it, the core creates a Classic account. To change the level of an existing account, use `account set addon <user> <level>`.
 
 To detach, press ctrl-p ctrl-q. Do not press ctrl-c, because it stops `mangosd`.
 
@@ -287,7 +289,7 @@ On the first start with playerbots, the module builds an equipment cache in the 
 
 ```sh
 kubectl -n cmangos port-forward svc/cmangos-mangosd-admin 3443:3443
-telnet 127.0.0.1 3443     # log in with the GM account, then: account create <user> <password>
+telnet 127.0.0.1 3443     # log in with the GM account, then: account create <user> <password> <level>
 ```
 
 ## Connecting a game client
