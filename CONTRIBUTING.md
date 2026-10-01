@@ -1,7 +1,6 @@
 # Contributing
 
-This file covers the images, the local workflow, the CI, and the releases.
-For the chart itself, see the [README](README.md).
+This file covers the images, the local workflow, the CI, and the releases. For the chart itself, see the [README](README.md).
 
 ## Images
 
@@ -12,28 +11,22 @@ The Dockerfile in `build/` has two targets:
 | `cmangos-classic-server` | `mangosd`, `realmd`, and the extractors (`ad`, `vmap_extractor`, `vmap_assembler`, `MoveMapGen`) | about 270 MB |
 | `cmangos-classic-db` | the MySQL client, the core SQL, [classic-db](https://github.com/cmangos/classic-db), and the playerbots SQL | about 450 MB |
 
-The two images must come from the same build, because the SQL updates follow
-the core revision. The file `build/sources.env` pins the three source
-repositories to commits, and Renovate updates the pins.
+The two images must come from the same build, because the SQL updates follow the core revision. The file `build/sources.env` pins the three source repositories to commits, and Renovate updates the pins.
 
-To build the images, you need Docker with buildx. The first build takes about
-10 minutes on an 8-core machine:
+To build the images, you need Docker with buildx. The first build takes about 10 minutes on an 8-core machine:
 
 ```sh
 make images
 ```
 
-The script loads the images into the local Docker and writes
-`build/images.generated.yaml`. To install the chart with these images, give
-Helm that file:
+The script loads the images into the local Docker and writes `build/images.generated.yaml`. To install the chart with these images, give Helm that file:
 
 ```sh
 helm install cmangos charts/cmangos -n cmangos --create-namespace \
   -f build/images.generated.yaml -f values.local.yaml
 ```
 
-The script resolves branch names to commits, so you can also build another
-revision:
+The script resolves branch names to commits, so you can also build another revision:
 
 ```sh
 CORE_REF=master DB_REF=master make images
@@ -51,8 +44,7 @@ Environment variables of `build/build-images.sh`:
 | `CORE_REF`, `DB_REF`, `PLAYERBOTS_REF` | from `build/sources.env` | Branch, tag, or commit |
 | `CACHE_REF` | empty | Registry cache prefix, for example `ghcr.io/you/cmangos-classic-cache:amd64` |
 
-If your cluster cannot pull from the local Docker, push the images to a
-registry with `REGISTRY` and `PUSH=1`. Then point the chart at them:
+If your cluster cannot pull from the local Docker, push the images to a registry with `REGISTRY` and `PUSH=1`. Then point the chart at them:
 
 ```yaml
 images:
@@ -68,10 +60,7 @@ images:
     digest: ""
 ```
 
-A rebuild on the same builder compiles only the changed files, because the
-compiler cache stays on the builder. With `CACHE_REF`, the build layers also
-go to a registry cache. If the sources and the base image did not change, a
-build on any machine then skips the compile.
+A rebuild on the same builder compiles only the changed files, because the compiler cache stays on the builder. With `CACHE_REF`, the build layers also go to a registry cache. If the sources and the base image did not change, a build on any machine then skips the compile.
 
 ## Local workflow
 
@@ -86,8 +75,7 @@ make test        # helm test (TCP checks against both servers)
 
 The file `values.local.yaml` is for your local configuration. Git ignores it.
 
-Artifact Hub shows the README outside of this repository. In the README, link
-to other files of the repository with full GitHub URLs.
+Artifact Hub shows the README outside of this repository. In the README, link to other files of the repository with full GitHub URLs.
 
 ## CI
 
@@ -99,9 +87,7 @@ to other files of the repository with full GitHub URLs.
 | `chart-e2e` | nightly | installs the chart on kind with the published images, without client data, and checks the databases and `realmd` |
 | `chart-release` | tag `chart-v*` | signs and pushes the chart to `oci://ghcr.io/christianjacobsen/charts` |
 
-The images workflow publishes the images with the tags `<date>-<commit>` and
-`latest`. Then it opens a pull request that pins the new tag and digest in
-`charts/cmangos/values.yaml`.
+The images workflow publishes the images with the tags `<date>-<commit>` and `latest`. Then it opens a pull request that pins the new tag and digest in `charts/cmangos/values.yaml`.
 
 ## Releases
 
