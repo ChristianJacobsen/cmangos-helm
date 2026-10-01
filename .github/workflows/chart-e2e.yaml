@@ -85,7 +85,9 @@ jobs:
           pw="$(kubectl -n cmangos get secret cmangos-db -o jsonpath='{.data.root-password}' | base64 -d)"
           # The unix socket fails on kind (docker-library/mysql#936).
           q() { kubectl -n cmangos exec cmangos-mysql-0 -- env MYSQL_PWD="$pw" mysql -h 127.0.0.1 -uroot -N -e "$1"; }
-          q "SELECT username, gmlevel FROM ${EXPANSION}realmd.account" | tee /dev/stderr | grep -q '^E2E	3$'
+          case "$EXPANSION" in classic) level=0 ;; tbc) level=1 ;; wotlk) level=2 ;; esac
+          q "SELECT username, gmlevel, expansion FROM ${EXPANSION}realmd.account" | tee /dev/stderr \
+            | grep -q "^E2E	3	$level$"
           test "$(q "SELECT COUNT(*) FROM ${EXPANSION}realmd.account WHERE username = 'ADMINISTRATOR'")" = 0
           test "$(q "SELECT COUNT(*) FROM ${EXPANSION}mangos.creature_template")" -gt 1000
           q "SELECT v FROM ${EXPANSION}mangos.cmangos_helm_state WHERE k = 'world_content'"

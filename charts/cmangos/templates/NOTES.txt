@@ -42,7 +42,7 @@ ACCOUNTS:
 {{- else }}
   No accounts configured (dbInit.accounts). Create one in the mangosd console:
     kubectl -n {{ $ns }} attach -it deploy/{{ $fullname }}-mangosd -c mangosd
-    account create <user> <password>
+    account create <user> <password>{{ if $client.level }} {{ $client.level }}{{ end }}
     account set gmlevel <user> 3
   Detach with ctrl-p ctrl-q. Do not press ctrl-c: it stops mangosd.
 {{- end }}

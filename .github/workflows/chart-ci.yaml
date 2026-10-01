@@ -156,6 +156,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 build/scripts/srp6.py --self-test
+          CMANGOS_EXPANSION=wotlk ACCOUNT_0_USERNAME=a ACCOUNT_0_PASSWORD=b python3 build/scripts/srp6.py \
+            | grep -q "SET gmlevel = 0, expansion = 2 WHERE username = 'A'"
           python3 -m py_compile build/scripts/auth-check.py
           cp charts/cmangos/values.yaml /tmp/values.yaml
           for expansion in classic tbc wotlk; do
