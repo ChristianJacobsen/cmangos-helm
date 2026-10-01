@@ -163,8 +163,6 @@ spec:
             - /opt/cmangos/etc/mangosd.conf
             - --ahbot
             - /opt/cmangos/etc/ahbot.conf
-            - --aiplayerbot
-            - /opt/cmangos/etc/aiplayerbot.conf
           # The mangosd console reads stdin: kubectl attach -it deploy/{{ $fullname }}-mangosd
           stdin: true
           tty: true
