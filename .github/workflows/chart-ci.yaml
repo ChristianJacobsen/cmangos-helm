@@ -68,7 +68,7 @@ jobs:
           grep -q 'mountPath: /scratch' <<< "$rendered"
           # A data volume source instead of the chart PVC.
           rendered="$(helm template t "$CHART" $BASE_ARGS --set clientData.volume.nfs.server=nas --set clientData.volume.nfs.path=/data)"
-          ! grep -q 'kind: PersistentVolumeClaim' <<< "$rendered"
+          if grep -q 'kind: PersistentVolumeClaim' <<< "$rendered"; then exit 1; fi
           test "$(grep -c 'server: nas' <<< "$rendered")" = 2
 
       - name: gateway api renders the served TCPRoute version
