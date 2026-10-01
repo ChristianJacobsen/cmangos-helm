@@ -19,37 +19,37 @@ images:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-server
-      tag: "20260930-8ec338a"
-      digest: "sha256:e623dc80931030a2678c84466d74d310ec0bcf626161bfd84dc75edf9bd483e4"
+      tag: "20261001-8ec338a"
+      digest: "sha256:774fefca526f2a911d105e9537e03c75c2df64c7e8c646c20b856ebea1ae9f38"
     # -- Database installer (target "db"). Must come from the same build as
     # the server image, because the SQL updates track the core revision.
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-db
-      tag: "20260930-8ec338a"
-      digest: "sha256:cb0cbcf74b1681c33972ab65926f4649e1e7ba96da7ea956f5605fa4b5533c9f"
+      tag: "20261001-8ec338a"
+      digest: "sha256:dee676a322590616896ad33e59cfef6f6d7e7681600a4afa8a00589e3d73b460"
   tbc:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-server
-      tag: ""
-      digest: ""
+      tag: "20261001-848851f"
+      digest: "sha256:a24a2d185ec051c0da12aea0144c5d847ad04e74f5e948bd222a1efd3efafb4b"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-db
-      tag: ""
-      digest: ""
+      tag: "20261001-848851f"
+      digest: "sha256:a9a55423671895cd13c35838efd26a0dfbbcb699700e5929f16bf2668affbcbd"
   wotlk:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-server
-      tag: ""
-      digest: ""
+      tag: "20261001-2fc8161"
+      digest: "sha256:ec6d2accbfbcc6388580f3c3bfb8877e1e2c00112b90ab0bce592831d735cc68"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-db
-      tag: ""
-      digest: ""
+      tag: "20261001-2fc8161"
+      digest: "sha256:09d7acda744b68dfe52fd73d0548a038bdeccafa3904631913615e4c7dff5fd5"
   # -- kubectl, for the init containers that wait for the db-init Job.
   # renovate: datasource=docker depName=alpine/k8s
   kubectl:
