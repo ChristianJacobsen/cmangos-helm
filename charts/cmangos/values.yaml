@@ -20,36 +20,36 @@ images:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-server
       tag: "20261001-8ec338a"
-      digest: "sha256:774fefca526f2a911d105e9537e03c75c2df64c7e8c646c20b856ebea1ae9f38"
+      digest: "sha256:dd1b00676192426cbc7ceb14ab4dd9e344804157d17c5ad5a1143dbcdc5f1437"
     # -- Database installer (target "db"). Must come from the same build as
     # the server image, because the SQL updates track the core revision.
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-db
       tag: "20261001-8ec338a"
-      digest: "sha256:dee676a322590616896ad33e59cfef6f6d7e7681600a4afa8a00589e3d73b460"
+      digest: "sha256:fffcafd20243d45cc74df554a1c12aaac90492f2ae24a14071666270792336ad"
   tbc:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-server
       tag: "20261001-848851f"
-      digest: "sha256:a24a2d185ec051c0da12aea0144c5d847ad04e74f5e948bd222a1efd3efafb4b"
+      digest: "sha256:ee1d0c85ebb49b40e0fc20db548bf48c671ce9a5fe1e7fc177b5f1cba8f0b32f"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-db
       tag: "20261001-848851f"
-      digest: "sha256:a9a55423671895cd13c35838efd26a0dfbbcb699700e5929f16bf2668affbcbd"
+      digest: "sha256:12028df17b2753efca411042d9ad149404310fab980cb099d98806c336cbe9db"
   wotlk:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-server
       tag: "20261001-2fc8161"
-      digest: "sha256:ec6d2accbfbcc6388580f3c3bfb8877e1e2c00112b90ab0bce592831d735cc68"
+      digest: "sha256:624c99992d863aaf5863cd30d9997495d87efd433e3a78993a3f294eb09d6e0c"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-db
       tag: "20261001-2fc8161"
-      digest: "sha256:09d7acda744b68dfe52fd73d0548a038bdeccafa3904631913615e4c7dff5fd5"
+      digest: "sha256:cd64a42a8a5439751f1e22fa5852a1c4562a3665d676fdc7d3d45457ea49138e"
   # -- kubectl, for the init containers that wait for the db-init Job.
   # renovate: datasource=docker depName=alpine/k8s
   kubectl:
