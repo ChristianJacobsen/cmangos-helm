@@ -1,7 +1,7 @@
 {{- if .Values.dbInit.enabled -}}
 {{- $fullname := include "cmangos.fullname" . -}}
 {{- $adminUser := include "cmangos.db.adminUser" . -}}
-{{- $names := .Values.database.names -}}
+{{- $names := include "cmangos.dbNames" . | fromYaml -}}
 {{- with .Values.dbInit.world.extraSql }}
 apiVersion: v1
 kind: ConfigMap
@@ -145,7 +145,7 @@ spec:
           resources:
             {{- toYaml .Values.dbInit.resources | nindent 12 }}
       volumes:
-        # A working copy of classic-db plus the unpacked world dump.
+        # A working copy of <expansion>-db plus the unpacked world dump.
         - name: tmp
           emptyDir:
             sizeLimit: 2Gi

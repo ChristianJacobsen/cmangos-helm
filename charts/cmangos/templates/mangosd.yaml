@@ -1,5 +1,5 @@
 {{- $fullname := include "cmangos.fullname" . -}}
-{{- $names := .Values.database.names -}}
+{{- $names := include "cmangos.dbNames" . | fromYaml -}}
 {{- $cd := .Values.clientData -}}
 {{- $soap := .Values.mangosd.soap -}}
 {{- $ra := .Values.mangosd.remoteAccess -}}

@@ -1,12 +1,12 @@
 apiVersion: v2
 name: cmangos
 description: |-
-  CMaNGOS Classic (World of Warcraft 1.12.1 private server): realmd, mangosd,
-  MySQL, database installation, and client-data extraction. Playerbots and the
+  CMaNGOS World of Warcraft private server for Classic (1.12.1), The Burning
+  Crusade (2.4.3), or Wrath of the Lich King (3.3.5a): realmd, mangosd, MySQL,
+  database installation, and client-data extraction. Playerbots and the
   auction house bot are compiled into the images and off by default.
 type: application
 version: 0.1.0
-appVersion: "classic"
 keywords:
   - cmangos
   - mangos
@@ -14,6 +14,10 @@ keywords:
   - wow
   - vanilla
   - classic
+  - tbc
+  - burning-crusade
+  - wotlk
+  - wrath-of-the-lich-king
   - private-server
   - playerbots
   - game-server
@@ -23,6 +27,10 @@ sources:
   - https://github.com/ChristianJacobsen/cmangos-helm
   - https://github.com/cmangos/mangos-classic
   - https://github.com/cmangos/classic-db
+  - https://github.com/cmangos/mangos-tbc
+  - https://github.com/cmangos/tbc-db
+  - https://github.com/cmangos/mangos-wotlk
+  - https://github.com/cmangos/wotlk-db
   - https://github.com/cmangos/playerbots
 annotations:
   artifacthub.io/license: GPL-2.0-or-later

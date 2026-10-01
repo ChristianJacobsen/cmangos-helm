@@ -24,7 +24,12 @@ jobs:
       # Without the pin pull request of the images workflow, the chart has no
       # image tags and does not install.
       - name: the chart values pin the images
-        run: helm template t charts/cmangos --set clientData.extract.clientVolume.hostPath.path=/srv/wow >/dev/null
+        run: |
+          set -euo pipefail
+          for expansion in classic tbc wotlk; do
+            helm template t charts/cmangos --set expansion=$expansion \
+              --set clientData.extract.clientVolume.hostPath.path=/srv/wow >/dev/null
+          done
 
       - name: package + push
         id: push

@@ -28,7 +28,8 @@ spec:
 {{- end }}
 {{- if ne $cd.source "none" }}
 {{- if and (eq $cd.source "extract") (not $clientVolume) (not $clientUrl) }}
-{{- fail "clientData.source=extract needs clientData.extract.clientVolume (a volume with the 1.12.1 client folder, the folder that contains Data/) or clientData.extract.clientUrl (an archive of that folder). Alternatives: clientData.source=download with clientData.download.url, or clientData.source=none with a data volume that holds the data already." }}
+{{- $client := include "cmangos.client" . | fromYaml }}
+{{- fail (printf "clientData.source=extract needs clientData.extract.clientVolume (a volume with the %s client folder, the folder that contains Data/) or clientData.extract.clientUrl (an archive of that folder). Alternatives: clientData.source=download with clientData.download.url, or clientData.source=none with a data volume that holds the data already." $client.version) }}
 {{- end }}
 {{- if and (eq $cd.source "download") (not $cd.download.url) }}
 {{- fail "clientData.source=download needs clientData.download.url" }}

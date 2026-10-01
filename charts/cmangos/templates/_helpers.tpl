@@ -58,10 +58,28 @@ annotations:
 {{- end -}}
 {{- end -}}
 
+{{- define "cmangos.client" -}}
+{{- $clients := dict
+  "classic" (dict "name" "Classic" "version" "1.12.1" "build" 5875)
+  "tbc" (dict "name" "The Burning Crusade" "version" "2.4.3" "build" 8606)
+  "wotlk" (dict "name" "Wrath of the Lich King" "version" "3.3.5a" "build" 12340)
+-}}
+{{- $client := index $clients .Values.expansion -}}
+{{- if not $client -}}
+{{- fail "expansion must be classic, tbc or wotlk" -}}
+{{- end -}}
+{{- toYaml $client -}}
+{{- end -}}
+
 {{- define "cmangos.image" -}}
-{{- $img := index .ctx.Values.images .component -}}
+{{- $images := .ctx.Values.images -}}
+{{- if or (hasKey $images "server") (hasKey $images "db") -}}
+{{- fail "images.server and images.db moved to images.<expansion>.server and images.<expansion>.db" -}}
+{{- end -}}
+{{- $expansion := .ctx.Values.expansion -}}
+{{- $img := index $images $expansion .component -}}
 {{- if or (not $img.repository) (not $img.tag) -}}
-{{- fail (printf "images.%s.repository and images.%s.tag are required. Use a published tag of ghcr.io/christianjacobsen/cmangos-classic-%s, or build your own images with `make images` and install with `-f build/images.generated.yaml`." .component .component .component) -}}
+{{- fail (printf "images.%s.%s.repository and images.%s.%s.tag are required. Use a published tag of ghcr.io/christianjacobsen/cmangos-%s-%s, or build your own images with `EXPANSION=%s make images` and install with `-f build/images.generated.yaml`." $expansion .component $expansion .component $expansion .component $expansion) -}}
 {{- end -}}
 {{- include "cmangos.renderImage" $img -}}
 {{- end -}}
@@ -83,6 +101,14 @@ imagePullSecrets:
 
 {{- define "cmangos.db.port" -}}
 {{- if .Values.mysql.enabled -}}3306{{- else -}}{{- .Values.externalDatabase.port | int -}}{{- end -}}
+{{- end -}}
+
+{{- define "cmangos.dbNames" -}}
+{{- $names := .Values.database.names -}}
+world: {{ $names.world | default (printf "%smangos" .Values.expansion) }}
+characters: {{ $names.characters | default (printf "%scharacters" .Values.expansion) }}
+realmd: {{ $names.realmd | default (printf "%srealmd" .Values.expansion) }}
+logs: {{ $names.logs | default (printf "%slogs" .Values.expansion) }}
 {{- end -}}
 
 {{- define "cmangos.db.secretName" -}}

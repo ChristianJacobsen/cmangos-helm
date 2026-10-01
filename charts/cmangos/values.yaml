@@ -1,3 +1,8 @@
+# -- The game version: classic (client 1.12.1), tbc (2.4.3) or wotlk (3.3.5a).
+# It selects the images under images.<expansion> and the default database
+# names. A data volume holds the data of one expansion only.
+expansion: classic
+
 nameOverride: ""
 fullnameOverride: ""
 podAnnotations: {}
@@ -7,21 +12,44 @@ imagePullSecrets: []
 imagePullPolicy: IfNotPresent
 
 # CMaNGOS publishes no images. The images workflow of this repository pins its
-# latest build below through a pull request.
+# latest builds below through a pull request.
 images:
-  # -- mangosd, realmd and the client-data extractors (target "server").
-  server:
-    registry: ghcr.io
-    repository: christianjacobsen/cmangos-classic-server
-    tag: "20260930-8ec338a"
-    digest: "sha256:e623dc80931030a2678c84466d74d310ec0bcf626161bfd84dc75edf9bd483e4"
-  # -- Database installer (target "db"). Must come from the same build as
-  # the server image, because the SQL updates track the core revision.
-  db:
-    registry: ghcr.io
-    repository: christianjacobsen/cmangos-classic-db
-    tag: "20260930-8ec338a"
-    digest: "sha256:cb0cbcf74b1681c33972ab65926f4649e1e7ba96da7ea956f5605fa4b5533c9f"
+  classic:
+    # -- mangosd, realmd and the client-data extractors (target "server").
+    server:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-classic-server
+      tag: "20260930-8ec338a"
+      digest: "sha256:e623dc80931030a2678c84466d74d310ec0bcf626161bfd84dc75edf9bd483e4"
+    # -- Database installer (target "db"). Must come from the same build as
+    # the server image, because the SQL updates track the core revision.
+    db:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-classic-db
+      tag: "20260930-8ec338a"
+      digest: "sha256:cb0cbcf74b1681c33972ab65926f4649e1e7ba96da7ea956f5605fa4b5533c9f"
+  tbc:
+    server:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-tbc-server
+      tag: ""
+      digest: ""
+    db:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-tbc-db
+      tag: ""
+      digest: ""
+  wotlk:
+    server:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-wotlk-server
+      tag: ""
+      digest: ""
+    db:
+      registry: ghcr.io
+      repository: christianjacobsen/cmangos-wotlk-db
+      tag: ""
+      digest: ""
   # -- kubectl, for the init containers that wait for the db-init Job.
   # renovate: datasource=docker depName=alpine/k8s
   kubectl:
@@ -57,11 +85,13 @@ database:
   # `root-password` (bundled MySQL) or `admin-password` (external database
   # with adminUser). Overrides the password values above.
   existingSecret: ""
+  # -- Empty = the CMaNGOS defaults: <expansion>mangos, <expansion>characters,
+  # <expansion>realmd and <expansion>logs.
   names:
-    world: classicmangos
-    characters: classiccharacters
-    realmd: classicrealmd
-    logs: classiclogs
+    world: ""
+    characters: ""
+    realmd: ""
+    logs: ""
 
 mysql:
   # -- false = use `externalDatabase`.
@@ -122,7 +152,7 @@ clientData:
     storageClass: ""
     accessModes: ["ReadWriteOnce"]
   # -- How the client-data Job fills the volume:
-  # extract   run the extractors against a 1.12.x client (clientData.extract)
+  # extract   run the extractors against a game client of the expansion (clientData.extract)
   # download  download an archive of data that you extracted before (clientData.download)
   # none      no Job. The volume already holds dbc/, maps/, vmaps/ and mmaps/.
   source: extract
@@ -175,7 +205,7 @@ dbInit:
   enabled: true
   world:
     # -- onChange: reinstall the world database when the image carries new
-    # world content (classic-db, core base SQL, scripts, playerbots).
+    # world content (<expansion>-db, core base SQL, scripts, playerbots).
     # never: install the world database only when it is empty. The core
     # updates still apply.
     # A reinstall discards manual world changes (for example .npc add).
@@ -183,7 +213,7 @@ dbInit:
     reinstall: onChange
     # -- Install the translated names (non-English clients).
     locales: false
-    # -- Apply the classic-db dev/ updates (work in progress upstream).
+    # -- Apply the <expansion>-db dev/ updates (work in progress upstream).
     devUpdates: false
     # -- SQL files that run in name order after every world install.
     # extraSql:

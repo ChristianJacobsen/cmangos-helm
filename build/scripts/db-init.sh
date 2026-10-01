@@ -13,10 +13,11 @@ DB_USER="${DB_USER:?DB_USER is required}"
 DB_PASSWORD="${DB_PASSWORD:?DB_PASSWORD is required}"
 DB_ADMIN_USER="${DB_ADMIN_USER:-}"
 DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-}"
-DB_WORLD="${DB_WORLD:-classicmangos}"
-DB_CHARACTERS="${DB_CHARACTERS:-classiccharacters}"
-DB_REALMD="${DB_REALMD:-classicrealmd}"
-DB_LOGS="${DB_LOGS:-classiclogs}"
+EXPANSION="${CMANGOS_EXPANSION:?CMANGOS_EXPANSION is required}"
+DB_WORLD="${DB_WORLD:-${EXPANSION}mangos}"
+DB_CHARACTERS="${DB_CHARACTERS:-${EXPANSION}characters}"
+DB_REALMD="${DB_REALMD:-${EXPANSION}realmd}"
+DB_LOGS="${DB_LOGS:-${EXPANSION}logs}"
 WORLD_REINSTALL="${WORLD_REINSTALL:-onChange}"
 WORLD_LOCALES="${WORLD_LOCALES:-NO}"
 WORLD_DEV_UPDATES="${WORLD_DEV_UPDATES:-NO}"
@@ -154,7 +155,7 @@ fi
 if [ "$install_world" = 1 ]; then
   installer -World
   log "applying playerbots world SQL"
-  for f in "$BOTS_SQL"/world/*.sql "$BOTS_SQL"/world/classic/*.sql; do
+  for f in "$BOTS_SQL"/world/*.sql "$BOTS_SQL/world/$EXPANSION"/*.sql; do
     [ -e "$f" ] && load_sql "$DB_WORLD" "$f"
   done
   if [ -n "$WORLD_EXTRA_SQL_DIR" ] && [ -d "$WORLD_EXTRA_SQL_DIR" ]; then

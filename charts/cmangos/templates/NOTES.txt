@@ -1,6 +1,7 @@
 {{- $ns := .Release.Namespace -}}
 {{- $fullname := include "cmangos.fullname" . -}}
-CMaNGOS Classic ({{ .Chart.Name }} {{ .Chart.Version }}), game client 1.12.1 (build 5875)
+{{- $client := include "cmangos.client" . | fromYaml -}}
+CMaNGOS {{ $client.name }} ({{ .Chart.Name }} {{ .Chart.Version }}), game client {{ $client.version }} (build {{ $client.build }})
 
 THE FIRST INSTALL TAKES A WHILE:
 {{- if eq .Values.clientData.source "extract" }}
@@ -24,7 +25,7 @@ Watch the progress:
   kubectl -n {{ $ns }} logs -f job/{{ include "cmangos.dbInitJobName" . }}
 {{- end }}
 
-CONNECT A GAME CLIENT (1.12.1):
+CONNECT A GAME CLIENT ({{ $client.version }}):
   kubectl -n {{ $ns }} get svc {{ $fullname }}-realmd {{ $fullname }}-mangosd
   1. Set realmlist.wtf in the client folder: set realmlist <realmd address>
   2. The realm list sends clients to {{ .Values.dbInit.realm.address }}:{{ include "cmangos.realmPort" . }}

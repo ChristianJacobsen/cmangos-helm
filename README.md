@@ -2,18 +2,21 @@
 
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/cmangos)](https://artifacthub.io/packages/helm/cmangos/cmangos)
 
-A Helm chart for [CMaNGOS](https://cmangos.net/) Classic, a World of Warcraft 1.12.1 (build 5875) server. The chart runs MySQL, `realmd` (the login server), and `mangosd` (the world server). Two Jobs prepare the data: one installs and migrates the databases, and one extracts the map data from your game client.
+A Helm chart for [CMaNGOS](https://cmangos.net/), a World of Warcraft server. A release runs one of three game versions: Classic (1.12.1), The Burning Crusade (2.4.3), or Wrath of the Lich King (3.3.5a).
+
+The chart runs MySQL, `realmd` (the login server), and `mangosd` (the world server). Two Jobs prepare the data: one installs and migrates the databases, and one extracts the map data from your game client.
 
 CMaNGOS publishes no container images, so this repository builds them from source. The images include the [playerbots](https://github.com/cmangos/playerbots) module and the auction house bot. Both are off by default, and you can turn them on in the chart values.
 
 ## Quick start
 
-You need a Kubernetes cluster, Helm 3.8 or later, and a 1.12.1 game client.
+You need a Kubernetes cluster, Helm 3.8 or later, and a game client of the expansion that you want to run.
 
-1. Write a values file. It tells the chart where the client is and which account to create. This example reads the client from a PVC. For the other options, see [Client data](#client-data).
+1. Write a values file. It tells the chart the expansion, where the client is, and which account to create. This example reads the client from a PVC. For the other options, see [Client data](#client-data).
 
    ```yaml
    # values.local.yaml
+   expansion: classic           # classic, tbc or wotlk
    clientData:
      extract:
        clientVolume:
@@ -47,9 +50,23 @@ You need a Kubernetes cluster, Helm 3.8 or later, and a 1.12.1 game client.
 
 5. In the client folder, set `realmlist.wtf` to the address of the `realmd` service. Then log in as `admin`.
 
-On an 8-core machine, the first install took about 17 minutes. The mmaps (navigation meshes) took 14 of them, and slower nodes take hours for the mmaps.
+On an 8-core machine, the first Classic install took about 17 minutes, and the mmaps (navigation meshes) took 14 of them. With 4 mmap threads on a 10-core machine, the extraction took 25 minutes for TBC and 38 minutes for WotLK. Slower nodes take hours for the mmaps.
 
 The chart values pin the images that the CI of this repository publishes to `ghcr.io/christianjacobsen`. To build your own images, see [CONTRIBUTING.md](https://github.com/ChristianJacobsen/cmangos-helm/blob/main/CONTRIBUTING.md).
+
+## Expansions
+
+The `expansion` value selects the game version:
+
+| `expansion` | Game version | Client build | World database |
+| --- | --- | --- | --- |
+| `classic` (default) | Classic 1.12.1 | 5875 | [classic-db](https://github.com/cmangos/classic-db) |
+| `tbc` | The Burning Crusade 2.4.3 | 8606 | [tbc-db](https://github.com/cmangos/tbc-db) |
+| `wotlk` | Wrath of the Lich King 3.3.5a | 12340 | [wotlk-db](https://github.com/cmangos/wotlk-db) |
+
+Each expansion has its own images, for example `cmangos-tbc-server` and `cmangos-tbc-db`. The expansion also sets the default database names, for example `tbcmangos` and `tbcrealmd`.
+
+To run more than one expansion, install one release for each expansion. If you change `expansion` on an existing release, the client-data Job stops with an error, because the data volume holds the data of the old expansion.
 
 ## What the chart deploys
 
@@ -145,7 +162,7 @@ The chart selects the data volume in this order:
 2. `clientData.existingClaim`: a PVC that you manage.
 3. A PVC that the chart creates from `clientData.storage` (10 GiB, ReadWriteOnce, the default storage class).
 
-The extracted data uses about 2.3 GB, and most of it is mmaps. The mmap generator uses about 0.5 to 1 GiB of memory per thread, so set `mmapThreads` to fit your node.
+The extracted data uses about 2.3 GB for Classic, 3.1 GB for TBC, and 3.2 GB for WotLK. Most of it is mmaps. The mmap generator uses about 0.5 to 1 GiB of memory per thread, so set `mmapThreads` to fit your node.
 
 The Job records each finished step on the data volume. If the Job restarts, it continues after the last finished step. If you turn on a step later, for example `mmaps: true`, the next upgrade runs only that step. Then restart `mangosd`, so that it loads the new data. To extract everything again, set `clientData.force=true` for one upgrade.
 
@@ -175,7 +192,7 @@ The bundled MySQL runs with a few extra arguments, and `mysql.extraArgs` in `val
 
 ### What the db-init Job does
 
-The db-init Job runs on every install and upgrade, and it is safe to run many times. It creates the databases, installs the world content from [classic-db](https://github.com/cmangos/classic-db), and applies the SQL updates. Then it sets the realm in the realm list and creates your accounts.
+The db-init Job runs on every install and upgrade, and it is safe to run many times. It creates the databases, installs the world content from the world database of the expansion, and applies the SQL updates. Then it sets the realm in the realm list and creates your accounts.
 
 The characters, `realmd`, and logs databases hold player data. The Job never drops them.
 
@@ -299,7 +316,7 @@ If `dbInit.realm.port` is empty, the chart uses the `nodePort` of the `mangosd` 
 To test both addresses without a game client, run the login test on your machine with Python 3:
 
 ```sh
-python3 build/scripts/auth-check.py --host <realmd address> \
+python3 build/scripts/auth-check.py --expansion classic --host <realmd address> \
   --user admin --password change-me --check-world
 ```
 
@@ -358,6 +375,8 @@ dbInit:
 ## Upgrades
 
 `helm upgrade` runs both Jobs again. The db-init Job applies the new SQL updates. The client-data Job finds its finished steps and completes in seconds. Every upgrade restarts both servers.
+
+Chart 0.2.0 moved `images.server` and `images.db` to `images.<expansion>.server` and `images.<expansion>.db`. If your values set them, move them before you upgrade.
 
 ## Uninstall
 
