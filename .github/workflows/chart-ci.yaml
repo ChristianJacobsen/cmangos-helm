@@ -15,15 +15,15 @@ env:
   CHART: charts/cmangos
   # The chart fails to render without images and a client source.
   IMAGE_ARGS: >-
-    --set images.server.repository=example/cmangos-classic-server
-    --set images.server.tag=test
-    --set images.db.repository=example/cmangos-classic-db
-    --set images.db.tag=test
+    --set images.classic.server.repository=example/cmangos-classic-server
+    --set images.classic.server.tag=test
+    --set images.classic.db.repository=example/cmangos-classic-db
+    --set images.classic.db.tag=test
   BASE_ARGS: >-
-    --set images.server.repository=example/cmangos-classic-server
-    --set images.server.tag=test
-    --set images.db.repository=example/cmangos-classic-db
-    --set images.db.tag=test
+    --set images.classic.server.repository=example/cmangos-classic-server
+    --set images.classic.server.tag=test
+    --set images.classic.db.repository=example/cmangos-classic-db
+    --set images.classic.db.tag=test
     --set clientData.extract.clientVolume.hostPath.path=/srv/wow
 
 jobs:
@@ -44,6 +44,28 @@ jobs:
             --set externalDatabase.host=db.example.com --set database.existingSecret=db-creds
           helm lint "$CHART" $BASE_ARGS --set clientData.source=download \
             --set clientData.download.url=https://example.com/data.tar.gz
+          for expansion in tbc wotlk; do
+            helm lint "$CHART" $BASE_ARGS --set expansion=$expansion \
+              --set images.$expansion.server.tag=test --set images.$expansion.db.tag=test
+          done
+
+      - name: the expansion selects the images, database names and client
+        run: |
+          set -euo pipefail
+          for expansion in tbc wotlk; do
+            rendered="$(helm template t "$CHART" --set expansion=$expansion \
+              --set images.$expansion.server.tag=test --set images.$expansion.db.tag=test \
+              --set clientData.extract.clientVolume.hostPath.path=/srv/wow \
+              --set 'dbInit.accounts[0].username=admin' --set 'dbInit.accounts[0].password=secret')"
+            grep -q "image: ghcr.io/christianjacobsen/cmangos-$expansion-server:test" <<< "$rendered"
+            grep -q "image: ghcr.io/christianjacobsen/cmangos-$expansion-db:test" <<< "$rendered"
+            grep -q "value: \"${expansion}realmd\"" <<< "$rendered"
+            grep -q "cmangos-auth-check --expansion $expansion " <<< "$rendered"
+            if grep -q classic <<< "$rendered"; then
+              echo "expansion=$expansion renders classic names" >&2
+              exit 1
+            fi
+          done
 
       - name: config keys render as CMaNGOS environment variables
         run: |
@@ -94,8 +116,14 @@ jobs:
             fi
           }
           # No images.
-          expect_fail --set images.server.tag= --set images.db.tag= \
+          expect_fail --set images.classic.server.tag= --set images.classic.db.tag= \
             --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+          expect_fail --set expansion=tbc --set images.tbc.server.tag= --set images.tbc.db.tag= \
+            --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+          # The image layout of chart 0.1.
+          expect_fail $BASE_ARGS --set images.server.tag=test
+          # An unknown expansion.
+          expect_fail $BASE_ARGS --set expansion=cata
           # No client volume.
           expect_fail $IMAGE_ARGS
           # mmaps without vmaps.
@@ -130,6 +158,8 @@ jobs:
           python3 build/scripts/srp6.py --self-test
           python3 -m py_compile build/scripts/auth-check.py
           cp charts/cmangos/values.yaml /tmp/values.yaml
-          python3 build/pin-images.py --values /tmp/values.yaml --tag 20260101-abcdef0 \
-            --server-digest "sha256:$(printf '%064d' 1)" --db-digest "sha256:$(printf '%064d' 2)"
-          test "$(diff charts/cmangos/values.yaml /tmp/values.yaml | grep -c '^>')" = 4
+          for expansion in classic tbc wotlk; do
+            python3 build/pin-images.py --values /tmp/values.yaml --expansion $expansion --tag 20260101-abcdef0 \
+              --server-digest "sha256:$(printf '%064d' 1)" --db-digest "sha256:$(printf '%064d' 2)"
+          done
+          test "$(diff charts/cmangos/values.yaml /tmp/values.yaml | grep -c '^>')" = 12

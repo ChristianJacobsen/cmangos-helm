@@ -5,6 +5,7 @@ set -euo pipefail
 log() { printf '==> %s: %s\n' "$(date -u '+%H:%M:%S')" "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+EXPANSION="${CMANGOS_EXPANSION:?CMANGOS_EXPANSION is required}"
 CLIENT_DIR="${CLIENT_DIR:-/client}"
 DATA_DIR="${DATA_DIR:-/opt/cmangos/data}"
 DATA_URL="${DATA_URL:-}"
@@ -32,7 +33,21 @@ if [ "$FORCE" = 1 ]; then
   rm -f "$STATE"/*
 fi
 
-done_step() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$REVISION" > "$STATE/$1"; }
+recorded=""
+if [ -f "$STATE/expansion" ]; then
+  recorded="$(cat "$STATE/expansion")"
+elif [ -f "$STATE/maps" ] || [ -f "$STATE/download" ]; then
+  # Volumes from before the expansion marker hold Classic data.
+  recorded=classic
+fi
+if [ -n "$recorded" ] && [ "$recorded" != "$EXPANSION" ]; then
+  die "the data volume holds $recorded data, but this image is for $EXPANSION. Use another data volume, or set FORCE=1 to extract again."
+fi
+
+done_step() {
+  printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$REVISION" > "$STATE/$1"
+  printf '%s\n' "$EXPANSION" > "$STATE/expansion"
+}
 has_step() { [ -f "$STATE/$1" ]; }
 
 # tar cannot detect the compression of a stream, so take it from the URL.

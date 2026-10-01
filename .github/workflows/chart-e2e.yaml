@@ -19,7 +19,12 @@ jobs:
   e2e:
     timeout-minutes: 45
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        expansion: [classic, tbc, wotlk]
     env:
+      EXPANSION: ${{ matrix.expansion }}
       TAG: ${{ inputs.tag || 'latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,20 +51,21 @@ jobs:
         run: |
           set -euo pipefail
           for img in server db; do
-            docker pull "$REGISTRY/cmangos-classic-$img:$TAG"
-            kind load docker-image --name e2e "$REGISTRY/cmangos-classic-$img:$TAG"
+            docker pull "$REGISTRY/cmangos-$EXPANSION-$img:$TAG"
+            kind load docker-image --name e2e "$REGISTRY/cmangos-$EXPANSION-$img:$TAG"
           done
 
       - name: install
         run: |
           set -euo pipefail
           helm install cmangos charts/cmangos -n cmangos --create-namespace \
-            --set images.server.registry=ghcr.io \
-            --set "images.server.repository=$OWNER/cmangos-classic-server" \
-            --set "images.server.tag=$TAG" --set images.server.digest= \
-            --set images.db.registry=ghcr.io \
-            --set "images.db.repository=$OWNER/cmangos-classic-db" \
-            --set "images.db.tag=$TAG" --set images.db.digest= \
+            --set "expansion=$EXPANSION" \
+            --set "images.$EXPANSION.server.registry=ghcr.io" \
+            --set "images.$EXPANSION.server.repository=$OWNER/cmangos-$EXPANSION-server" \
+            --set "images.$EXPANSION.server.tag=$TAG" --set "images.$EXPANSION.server.digest=" \
+            --set "images.$EXPANSION.db.registry=ghcr.io" \
+            --set "images.$EXPANSION.db.repository=$OWNER/cmangos-$EXPANSION-db" \
+            --set "images.$EXPANSION.db.tag=$TAG" --set "images.$EXPANSION.db.digest=" \
             --set clientData.source=none \
             --set realmd.service.type=ClusterIP \
             --set mangosd.service.type=ClusterIP \
@@ -79,16 +85,16 @@ jobs:
           pw="$(kubectl -n cmangos get secret cmangos-db -o jsonpath='{.data.root-password}' | base64 -d)"
           # The unix socket fails on kind (docker-library/mysql#936).
           q() { kubectl -n cmangos exec cmangos-mysql-0 -- env MYSQL_PWD="$pw" mysql -h 127.0.0.1 -uroot -N -e "$1"; }
-          q "SELECT username, gmlevel FROM classicrealmd.account" | tee /dev/stderr | grep -q '^E2E	3$'
-          test "$(q "SELECT COUNT(*) FROM classicrealmd.account WHERE username = 'ADMINISTRATOR'")" = 0
-          test "$(q "SELECT COUNT(*) FROM classicmangos.creature_template")" -gt 1000
-          q "SELECT v FROM classicmangos.cmangos_helm_state WHERE k = 'world_content'"
+          q "SELECT username, gmlevel FROM ${EXPANSION}realmd.account" | tee /dev/stderr | grep -q '^E2E	3$'
+          test "$(q "SELECT COUNT(*) FROM ${EXPANSION}realmd.account WHERE username = 'ADMINISTRATOR'")" = 0
+          test "$(q "SELECT COUNT(*) FROM ${EXPANSION}mangos.creature_template")" -gt 1000
+          q "SELECT v FROM ${EXPANSION}mangos.cmangos_helm_state WHERE k = 'world_content'"
 
       - name: log in as the e2e account (SRP6 against realmd)
         run: |
           set -euo pipefail
           kubectl -n cmangos run auth-check --restart=Never \
-            --image="$REGISTRY/cmangos-classic-db:$TAG" --image-pull-policy=IfNotPresent \
+            --image="$REGISTRY/cmangos-$EXPANSION-db:$TAG" --image-pull-policy=IfNotPresent \
             --env=AUTH_USERNAME=e2e --env=AUTH_PASSWORD=e2epass \
             --command -- cmangos-auth-check --host cmangos-realmd
           kubectl -n cmangos wait --for=jsonpath='{.status.phase}'=Succeeded pod/auth-check --timeout=120s

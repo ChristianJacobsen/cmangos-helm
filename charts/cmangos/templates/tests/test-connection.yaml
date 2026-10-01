@@ -31,7 +31,7 @@ spec:
           timeout "$connect_timeout_seconds" bash -c '</dev/tcp/{{ $fullname }}-mangosd/{{ .Values.mangosd.service.port }}'
           echo "mangosd {{ $fullname }}-mangosd:{{ .Values.mangosd.service.port }} reachable"
           {{- if $account }}
-          cmangos-auth-check --host {{ $fullname }}-realmd --port {{ .Values.realmd.service.port }} --expect-online
+          cmangos-auth-check --expansion {{ .Values.expansion }} --host {{ $fullname }}-realmd --port {{ .Values.realmd.service.port }} --expect-online
           {{- end }}
       {{- if $account }}
       env:

@@ -13,18 +13,30 @@ permissions:
   contents: read
   packages: write
 
+env:
+  EXPANSIONS: classic tbc wotlk
+
 jobs:
   meta:
     runs-on: ubuntu-24.04
     outputs:
-      tag: ${{ steps.meta.outputs.tag }}
+      date: ${{ steps.meta.outputs.date }}
+      tags: ${{ steps.meta.outputs.tags }}
       registry: ${{ steps.meta.outputs.registry }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: meta
         run: |
+          set -euo pipefail
           . build/sources.env
-          echo "tag=$(date -u +%Y%m%d)-${CORE_REF:0:7}" >> "$GITHUB_OUTPUT"
+          date="$(date -u +%Y%m%d)"
+          tags='{}'
+          for expansion in $EXPANSIONS; do
+            core_pin="${expansion^^}_CORE_REF"
+            tags="$(jq -c --arg e "$expansion" --arg t "$date-${!core_pin:0:7}" '. + {($e): $t}' <<< "$tags")"
+          done
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
           # GHCR names are lowercase.
           echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
@@ -34,6 +46,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        expansion: [classic, tbc, wotlk]
+        arch: [amd64, arm64]
         include:
           - arch: amd64
             runs-on: ubuntu-24.04
@@ -53,14 +67,15 @@ jobs:
 
       - name: build + push per-arch images
         env:
+          EXPANSION: ${{ matrix.expansion }}
           REGISTRY: ${{ needs.meta.outputs.registry }}
-          TAG: ${{ needs.meta.outputs.tag }}-${{ matrix.arch }}
+          TAG: ${{ fromJSON(needs.meta.outputs.tags)[matrix.expansion] }}-${{ matrix.arch }}
           PLATFORMS: linux/${{ matrix.arch }}
           PUSH: "1"
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           # A registry cache has no eviction window, so the weekly run skips the
           # compile when build/sources.env and the base image are unchanged.
-          CACHE_REF: ${{ needs.meta.outputs.registry }}/cmangos-classic-cache:${{ matrix.arch }}
+          CACHE_REF: ${{ needs.meta.outputs.registry }}/cmangos-${{ matrix.expansion }}-cache:${{ matrix.arch }}
         run: build/build-images.sh
 
   manifest:
@@ -70,8 +85,7 @@ jobs:
       packages: write
       id-token: write   # keyless cosign signs with the OIDC token of the run
     outputs:
-      server-digest: ${{ steps.merge.outputs.server-digest }}
-      db-digest: ${{ steps.merge.outputs.db-digest }}
+      pins: ${{ steps.merge.outputs.pins }}
     steps:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -87,24 +101,34 @@ jobs:
         id: merge
         env:
           REGISTRY: ${{ needs.meta.outputs.registry }}
-          TAG: ${{ needs.meta.outputs.tag }}
+          TAGS: ${{ needs.meta.outputs.tags }}
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
-          for img in server db; do
-            repo="$REGISTRY/cmangos-classic-$img"
-            for tag in "$TAG" latest; do
-              # An index has no image labels, so the repository link needs an annotation.
-              docker buildx imagetools create -t "$repo:$tag" \
-                --annotation "index:org.opencontainers.image.source=$IMAGE_SOURCE" \
-                "$repo:$TAG-amd64" "$repo:$TAG-arm64"
+          pins='{}'
+          for expansion in $EXPANSIONS; do
+            tag="$(jq -r --arg e "$expansion" '.[$e]' <<< "$TAGS")"
+            pin="$(jq -cn --arg tag "$tag" '{tag: $tag}')"
+            for img in server db; do
+              repo="$REGISTRY/cmangos-$expansion-$img"
+              # An index has no image labels, so GHCR reads these annotations.
+              description="$(docker buildx imagetools inspect "$repo:$tag-amd64" \
+                --format '{{ index .Image.Config.Labels "org.opencontainers.image.description" }}')"
+              for t in "$tag" latest; do
+                docker buildx imagetools create -t "$repo:$t" \
+                  --annotation "index:org.opencontainers.image.source=$IMAGE_SOURCE" \
+                  --annotation "index:org.opencontainers.image.description=$description" \
+                  "$repo:$tag-amd64" "$repo:$tag-arm64"
+              done
+              # The index digest (not a platform digest) is the value to pin.
+              digest="$(docker buildx imagetools inspect "$repo:$tag" --format '{{ json .Manifest }}' | jq -r .digest)"
+              echo "$repo:$tag@$digest"
+              pin="$(jq -c --arg img "$img" --arg d "$digest" '. + {($img): $d}' <<< "$pin")"
+              cosign sign --yes "$repo@$digest"
             done
-            # The index digest (not a platform digest) is the value to pin.
-            digest="$(docker buildx imagetools inspect "$repo:$TAG" --format '{{ json .Manifest }}' | jq -r .digest)"
-            echo "$repo:$TAG@$digest"
-            echo "$img-digest=$digest" >> "$GITHUB_OUTPUT"
-            cosign sign --yes "$repo@$digest"
+            pins="$(jq -c --arg e "$expansion" --argjson p "$pin" '. + {($e): $p}' <<< "$pins")"
           done
+          echo "pins=$pins" >> "$GITHUB_OUTPUT"
 
   pin:
     needs: [meta, manifest]
@@ -121,11 +145,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: pin the images in the chart values
-        run: >
-          build/pin-images.py
-          --tag "${{ needs.meta.outputs.tag }}"
-          --server-digest "${{ needs.manifest.outputs.server-digest }}"
-          --db-digest "${{ needs.manifest.outputs.db-digest }}"
+        env:
+          PINS: ${{ needs.manifest.outputs.pins }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | [.key, .value.tag, .value.server, .value.db] | @tsv' <<< "$PINS" |
+            while IFS=$'\t' read -r expansion tag server db; do
+              build/pin-images.py --expansion "$expansion" --tag "$tag" --server-digest "$server" --db-digest "$db"
+            done
 
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
@@ -142,13 +169,8 @@ jobs:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           sign-commits: true
           branch: chore/pin-images
-          commit-message: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
-          title: "chore(chart): pin images to ${{ needs.meta.outputs.tag }}"
+          commit-message: "chore(chart): pin images of ${{ needs.meta.outputs.date }}"
+          title: "chore(chart): pin images of ${{ needs.meta.outputs.date }}"
           body: |
-            Pins the chart images to the build that the images workflow published:
-
-            - `${{ needs.meta.outputs.registry }}/cmangos-classic-server:${{ needs.meta.outputs.tag }}@${{ needs.manifest.outputs.server-digest }}`
-            - `${{ needs.meta.outputs.registry }}/cmangos-classic-db:${{ needs.meta.outputs.tag }}@${{ needs.manifest.outputs.db-digest }}`
-
-            The source commits are in `build/sources.env`.
+            Pins the chart images to the builds that the images workflow published. The diff shows the tags and digests, and `build/sources.env` holds the source commits.
           delete-branch: true

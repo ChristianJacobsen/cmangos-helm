@@ -6,6 +6,8 @@
 ARG UBUNTU_IMAGE=ubuntu:24.04
 # The chart's podSecurityContext runs the pods with this uid and gid.
 ARG APP_UID=1000
+# classic, tbc or wotlk: the suffix of the CMaNGOS repository names.
+ARG EXPANSION=classic
 
 FROM ${UBUNTU_IMAGE} AS builder
 ARG DEBIAN_FRONTEND=noninteractive
@@ -19,7 +21,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libboost-serialization-dev libboost-filesystem-dev \
       libmysqlclient-dev libssl-dev zlib1g-dev libbz2-dev
 
-ARG CORE_REPO=https://github.com/cmangos/mangos-classic.git
+ARG EXPANSION
+ARG CORE_REPO=https://github.com/cmangos/mangos-${EXPANSION}.git
 ARG CORE_REF=master
 ARG PLAYERBOTS_REPO=https://github.com/cmangos/playerbots.git
 ARG PLAYERBOTS_REF=master
@@ -36,7 +39,7 @@ ARG CMAKE_BUILD_TYPE=Release
 ENV CCACHE_DIR=/ccache \
     CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime \
     CCACHE_MAXSIZE=5G
-RUN --mount=type=cache,target=/ccache,id=cmangos-classic-ccache \
+RUN --mount=type=cache,target=/ccache,id=cmangos-${EXPANSION}-ccache \
     set -eux; \
     jobs="$BUILD_JOBS"; [ "$jobs" != 0 ] || jobs="$(nproc)"; \
     cmake -S /src/core -B /build -G Ninja \
@@ -76,6 +79,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 FROM runtime AS server
 ARG APP_UID
+ARG EXPANSION
 COPY --from=builder /opt/cmangos /opt/cmangos
 COPY --chmod=0755 scripts/extract-client-data.sh /usr/local/bin/cmangos-extract
 # The servers refuse to start without a .conf file. The chart sets the values
@@ -87,7 +91,8 @@ RUN set -eux; \
     chown cmangos:cmangos /opt/cmangos/logs; \
     ldd /opt/cmangos/bin/mangosd /opt/cmangos/bin/realmd /opt/cmangos/bin/tools/* 2>/dev/null \
       | grep 'not found' && exit 1 || true
-ENV Mangosd_DataDir=/opt/cmangos/data \
+ENV CMANGOS_EXPANSION=${EXPANSION} \
+    Mangosd_DataDir=/opt/cmangos/data \
     Mangosd_LogsDir=/opt/cmangos/logs \
     Realmd_LogsDir=/opt/cmangos/logs
 # The playerbots module reads ../etc/aiplayerbot.conf relative to the working
@@ -109,7 +114,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && groupadd --gid "$APP_UID" cmangos \
  && useradd --uid "$APP_UID" --gid "$APP_UID" --home-dir /tmp --no-create-home --shell /usr/sbin/nologin cmangos
 
-ARG DB_REPO=https://github.com/cmangos/classic-db.git
+ARG EXPANSION
+ARG DB_REPO=https://github.com/cmangos/${EXPANSION}-db.git
 ARG DB_REF=master
 ADD ${DB_REPO}#${DB_REF} /opt/cmangos/db
 # InstallFullDB.sh reads CORE_PATH/sql and the playerbots SQL from the core tree.
@@ -117,7 +123,7 @@ COPY --from=builder /src/core/sql /opt/cmangos/core/sql
 COPY --from=builder /src/core/src/shared/revision_sql.h /opt/cmangos/core/src/shared/revision_sql.h
 COPY --from=builder /src/core/src/modules/PlayerBots/sql/characters /opt/cmangos/core/src/modules/PlayerBots/sql/characters
 COPY --from=builder /src/core/src/modules/PlayerBots/sql/world/*.sql /opt/cmangos/core/src/modules/PlayerBots/sql/world/
-COPY --from=builder /src/core/src/modules/PlayerBots/sql/world/classic /opt/cmangos/core/src/modules/PlayerBots/sql/world/classic
+COPY --from=builder /src/core/src/modules/PlayerBots/sql/world/${EXPANSION} /opt/cmangos/core/src/modules/PlayerBots/sql/world/${EXPANSION}
 COPY --chmod=0755 scripts/db-init.sh /usr/local/bin/cmangos-db-init
 COPY --chmod=0755 scripts/srp6.py /usr/local/bin/cmangos-srp6
 COPY --chmod=0755 scripts/auth-check.py /usr/local/bin/cmangos-auth-check
@@ -129,6 +135,7 @@ RUN set -eux; \
       -type f \( -name '*.sql' -o -name '*.gz' \) -print0 \
       | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1 > /opt/cmangos/world-content.sha256; \
     cat /opt/cmangos/world-content.sha256
+ENV CMANGOS_EXPANSION=${EXPANSION}
 USER ${APP_UID}:${APP_UID}
 WORKDIR /tmp
 CMD ["/usr/local/bin/cmangos-db-init"]

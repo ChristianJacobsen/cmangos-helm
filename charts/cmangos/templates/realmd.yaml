@@ -1,6 +1,6 @@
 {{- $fullname := include "cmangos.fullname" . -}}
 {{- $defaults := dict
-  "LoginDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" .Values.database.names.realmd))
+  "LoginDatabaseInfo" (include "cmangos.db.info" (dict "ctx" . "name" (include "cmangos.dbNames" . | fromYaml).realmd))
   "LogsDir" "/opt/cmangos/logs"
   "LogFile" ""
   "RealmServerPort" 3724

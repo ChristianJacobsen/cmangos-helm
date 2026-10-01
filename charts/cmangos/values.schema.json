@@ -12,6 +12,13 @@
         "digest": { "type": "string" }
       }
     },
+    "expansionImages": {
+      "type": "object",
+      "properties": {
+        "server": { "$ref": "#/definitions/image" },
+        "db": { "$ref": "#/definitions/image" }
+      }
+    },
     "confMap": {
       "type": "object",
       "additionalProperties": { "type": ["string", "number", "boolean"] }
@@ -41,13 +48,15 @@
     }
   },
   "properties": {
+    "expansion": { "type": "string", "enum": ["classic", "tbc", "wotlk"] },
     "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
     "imagePullSecrets": { "type": "array" },
     "images": {
       "type": "object",
       "properties": {
-        "server": { "$ref": "#/definitions/image" },
-        "db": { "$ref": "#/definitions/image" },
+        "classic": { "$ref": "#/definitions/expansionImages" },
+        "tbc": { "$ref": "#/definitions/expansionImages" },
+        "wotlk": { "$ref": "#/definitions/expansionImages" },
         "kubectl": { "$ref": "#/definitions/image" }
       }
     },
@@ -60,10 +69,10 @@
         "names": {
           "type": "object",
           "properties": {
-            "world": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
-            "characters": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
-            "realmd": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
-            "logs": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" }
+            "world": { "type": "string", "pattern": "^[A-Za-z0-9_]*$" },
+            "characters": { "type": "string", "pattern": "^[A-Za-z0-9_]*$" },
+            "realmd": { "type": "string", "pattern": "^[A-Za-z0-9_]*$" },
+            "logs": { "type": "string", "pattern": "^[A-Za-z0-9_]*$" }
           }
         }
       }
