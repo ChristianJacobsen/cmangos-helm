@@ -28,8 +28,24 @@ jobs:
           set -euo pipefail
           for expansion in classic tbc wotlk; do
             helm template t charts/cmangos --set expansion=$expansion \
-              --set clientData.extract.clientVolume.hostPath.path=/srv/wow >/dev/null
-          done
+              --set clientData.extract.clientVolume.hostPath.path=/srv/wow
+          done > rendered.yaml
+
+      # Without this annotation, Artifact Hub scans the images of a render with
+      # the default values, and that render fails without a client data source.
+      - name: list the images for the artifact hub scan
+        run: |
+          set -euo pipefail
+          # Artifact Hub does not scan a chart version with more images.
+          max_scanned_images=15
+          images="$(yq ea '[.. | select(tag == "!!map" and has("image")) | .image] | unique
+            | map({"name": (split("@")[0] | split("/") | .[-1] | split(":")[0]), "image": .})' rendered.yaml)"
+          count="$(yq length <<< "$images")"
+          if (( count > max_scanned_images )); then
+            echo "::error::the chart has $count images, but Artifact Hub scans at most $max_scanned_images"
+            exit 1
+          fi
+          IMAGES="$images" yq -i '.annotations."artifacthub.io/images" = strenv(IMAGES)' charts/cmangos/Chart.yaml
 
       - name: package + push
         id: push
