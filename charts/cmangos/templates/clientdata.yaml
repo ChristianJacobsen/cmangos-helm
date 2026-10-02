@@ -37,6 +37,9 @@ spec:
 {{- if and $cd.extract.mmaps (not $cd.extract.vmaps) }}
 {{- fail "clientData.extract.mmaps needs clientData.extract.vmaps" }}
 {{- end }}
+{{- if and (eq $cd.source "extract") (not $cd.extract.mmaps) (has .Values.expansion (list "classic" "tbc")) }}
+{{- fail (printf "clientData.extract.mmaps=false does not work for expansion=%s: its mangosd stops at the start without mmaps, even with mmap.enabled=0" .Values.expansion) }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:

@@ -176,9 +176,10 @@ clientData:
     scratchVolume:
       emptyDir:
         sizeLimit: 12Gi
-    # -- vmaps: line of sight and height checks.
+    # -- vmaps: line of sight and height checks. The mmaps need them.
     vmaps: true
-    # -- mmaps: creature path finding. The slowest step.
+    # -- mmaps: creature path finding. The slowest step. Classic and TBC need
+    # them, because their mangosd stops at the start without mmaps.
     mmaps: true
     # -- Threads for the mmap generator. 0 = one per CPU of the node.
     mmapThreads: 0

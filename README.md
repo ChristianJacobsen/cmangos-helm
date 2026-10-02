@@ -89,6 +89,8 @@ The server pods wait until the Jobs of their release revision are complete.
 - vmaps: buildings and other models, for line of sight.
 - mmaps: navigation meshes, for creature path finding.
 
+The `mangosd` of Classic and TBC stops at the start without the mmaps, so the chart refuses `clientData.extract.mmaps: false` for these expansions.
+
 CMaNGOS has no download of this data, so the chart extracts it from your client. Two volumes take part: the client volume, which the Job reads, and the data volume, which the Job fills and `mangosd` reads.
 
 The `clientData.source` value selects how the Job fills the data volume:

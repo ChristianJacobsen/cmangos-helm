@@ -92,6 +92,10 @@ jobs:
           rendered="$(helm template t "$CHART" $BASE_ARGS --set clientData.volume.nfs.server=nas --set clientData.volume.nfs.path=/data)"
           if grep -q 'kind: PersistentVolumeClaim' <<< "$rendered"; then exit 1; fi
           test "$(grep -c 'server: nas' <<< "$rendered")" = 2
+          # The WotLK core checks mmap.enabled before it loads the mmaps.
+          rendered="$(helm template t "$CHART" $BASE_ARGS --set expansion=wotlk \
+            --set images.wotlk.server.tag=test --set images.wotlk.db.tag=test --set clientData.extract.mmaps=false)"
+          grep -A1 'name: Mangosd_mmap_enabled' <<< "$rendered" | grep -q '"0"'
 
       - name: gateway api renders the served TCPRoute version
         run: |
@@ -128,6 +132,10 @@ jobs:
           expect_fail $IMAGE_ARGS
           # mmaps without vmaps.
           expect_fail $BASE_ARGS --set clientData.extract.vmaps=false
+          # Classic and TBC without mmaps.
+          expect_fail $BASE_ARGS --set clientData.extract.mmaps=false
+          expect_fail $BASE_ARGS --set expansion=tbc --set images.tbc.server.tag=test --set images.tbc.db.tag=test \
+            --set clientData.extract.mmaps=false
           # Gateway without a TCPRoute API in the cluster.
           expect_fail $BASE_ARGS --set gateway.enabled=true \
             --set 'gateway.parentRefs.realmd[0].name=g' --set 'gateway.parentRefs.mangosd[0].name=g'
