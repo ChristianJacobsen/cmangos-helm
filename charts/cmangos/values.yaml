@@ -51,11 +51,11 @@ images:
       tag: "20261001-2fc8161"
       digest: "sha256:cd64a42a8a5439751f1e22fa5852a1c4562a3665d676fdc7d3d45457ea49138e"
   # -- kubectl, for the init containers that wait for the db-init Job.
-  # renovate: datasource=docker depName=alpine/k8s
+  # renovate: datasource=docker depName=registry.k8s.io/kubectl
   kubectl:
-    registry: docker.io
-    repository: alpine/k8s
-    tag: 1.35.8
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: v1.35.9
     digest: ""
 
 # -- The images run as uid 1000 (APP_UID in build/Dockerfile).
