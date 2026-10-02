@@ -72,7 +72,7 @@ To run more than one expansion, install one release for each expansion. If you c
 
 | Component | Kind | Purpose |
 | --- | --- | --- |
-| `mysql` | StatefulSet | MySQL 8.4 with the four CMaNGOS databases (optional, see [Database](#database)) |
+| `mysql` | StatefulSet | MySQL 9.7 with the four CMaNGOS databases (optional, see [Database](#database)) |
 | `db-init` | Job | Creates the databases, installs the world content, applies the SQL updates, and creates accounts |
 | `client-data` | Job | Fills the data volume with dbc, maps, vmaps, and mmaps |
 | `realmd` | Deployment and Service | The login server (port 3724) |
@@ -168,7 +168,7 @@ The Job records each finished step on the data volume. If the Job restarts, it c
 
 ## Database
 
-By default, the chart deploys MySQL 8.4 with a 10 GiB volume. It generates the root password and the password of the `mangos` user, and it keeps both in a Secret.
+By default, the chart deploys MySQL 9.7 with a 10 GiB volume. The image is the official MySQL image without gosu and MySQL Shell, and it runs as uid 999. It generates the root password and the password of the `mangos` user, and it keeps both in a Secret.
 
 To use your own MySQL or MariaDB server:
 
@@ -188,7 +188,7 @@ If you set `adminUser`, the db-init Job creates the four databases and the `mang
 
 Do not use `;` in the password. CMaNGOS uses it to separate the fields of its connection strings.
 
-The bundled MySQL runs with a few extra arguments, and `mysql.extraArgs` in `values.yaml` gives the reasons. Only MySQL 8.4 is tested.
+The bundled MySQL runs with a few extra arguments, and `mysql.extraArgs` in `values.yaml` gives the reasons. Only MySQL 8.4 and 9.7 are tested.
 
 ### What the db-init Job does
 
@@ -379,6 +379,8 @@ dbInit:
 `helm upgrade` runs both Jobs again. The db-init Job applies the new SQL updates. The client-data Job finds its finished steps and completes in seconds. Every upgrade restarts both servers.
 
 Chart 0.2.0 moved `images.server` and `images.db` to `images.<expansion>.server` and `images.<expansion>.db`. If your values set them, move them before you upgrade.
+
+Chart 0.3.0 moves the bundled MySQL from 8.4 to 9.7. On its first start, MySQL 9.7 upgrades the data directory, and MySQL 8.4 cannot read it after that. Back up the databases with `mysqldump` before you upgrade.
 
 ## Uninstall
 

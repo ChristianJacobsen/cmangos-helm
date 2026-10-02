@@ -164,4 +164,7 @@ jobs:
             python3 build/pin-images.py --values /tmp/values.yaml --expansion $expansion --tag 20260101-abcdef0 \
               --server-digest "sha256:$(printf '%064d' 1)" --db-digest "sha256:$(printf '%064d' 2)"
           done
-          test "$(diff charts/cmangos/values.yaml /tmp/values.yaml | grep -c '^>')" = 12
+          python3 build/pin-images.py --values /tmp/values.yaml --image mysql --tag 9.7.2-20260101 \
+            --digest "sha256:$(printf '%064d' 3)"
+          test "$(diff charts/cmangos/values.yaml /tmp/values.yaml | grep -c '^>')" = 14
+          grep -A3 '^  image:' /tmp/values.yaml | grep -q 'tag: "9.7.2-20260101"'

@@ -96,11 +96,13 @@ database:
 mysql:
   # -- false = use `externalDatabase`.
   enabled: true
-  # renovate: datasource=docker depName=library/mysql
+  # -- MySQL 9.7 without gosu and MySQL Shell (build/mysql.Dockerfile). It runs
+  # as uid 999. A new major version of MySQL upgrades the data directory, and
+  # the upgrade cannot be undone.
   image:
-    registry: docker.io
-    repository: library/mysql
-    tag: 8.4.11
+    registry: ghcr.io
+    repository: christianjacobsen/cmangos-mysql
+    tag: ""
     digest: ""
   # -- Root password. Empty = generated and kept across upgrades. MySQL reads
   # it only when it initializes an empty data directory.

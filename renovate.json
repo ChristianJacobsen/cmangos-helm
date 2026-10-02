@@ -28,10 +28,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^build/Dockerfile$/"
+        "/^build/(.+\\.)?Dockerfile$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG UBUNTU_IMAGE=ubuntu:(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG [A-Z_]+_IMAGE=[^:\\s]+:(?<currentValue>\\S+)"
       ]
     }
   ],

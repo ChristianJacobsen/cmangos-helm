@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pin images.<expansion>.server and images.<expansion>.db in the chart values to a tag and digest.
+"""Pin the images of an expansion, or one other image, in the chart values to a tag and digest.
 
 Edits the tag and digest lines as text: a YAML round trip would drop the
 comments that document values.yaml.
@@ -12,6 +12,8 @@ import sys
 VALUES = pathlib.Path(__file__).resolve().parent.parent / "charts" / "cmangos" / "values.yaml"
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 EXPANSIONS = ("classic", "tbc", "wotlk")
+# The other images that the images workflow builds, with their key in the values.
+IMAGES = {"mysql": ("mysql", "image")}
 
 
 def key_at(line: str, indent: int):
@@ -20,7 +22,7 @@ def key_at(line: str, indent: int):
     return m.group(1) if m else None
 
 
-def pin(text: str, expansion: str, component: str, tag: str, digest: str) -> str:
+def pin(text: str, keys: tuple, tag: str, digest: str) -> str:
     lines = text.splitlines(keepends=True)
     path = []
     done = set()
@@ -35,31 +37,42 @@ def pin(text: str, expansion: str, component: str, tag: str, digest: str) -> str
         if key is None:
             continue
         path = path[:depth] + [key]
-        if path[:3] == ["images", expansion, component] and depth == 3 and key in ("tag", "digest"):
+        if tuple(path[:depth]) == keys and depth == len(keys) and key in ("tag", "digest"):
             value = tag if key == "tag" else digest
             lines[i] = f'{" " * indent}{key}: "{value}"\n'
             done.add(key)
     if done != {"tag", "digest"}:
-        sys.exit(f"images.{expansion}.{component}: tag or digest line not found in {VALUES}")
+        sys.exit(f"{'.'.join(keys)}: tag or digest line not found in {VALUES}")
     return "".join(lines)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--expansion", required=True, choices=EXPANSIONS)
+    p.add_argument("--expansion", choices=EXPANSIONS)
+    p.add_argument("--image", choices=IMAGES)
     p.add_argument("--tag", required=True)
-    p.add_argument("--server-digest", required=True)
-    p.add_argument("--db-digest", required=True)
+    p.add_argument("--server-digest", help="with --expansion")
+    p.add_argument("--db-digest", help="with --expansion")
+    p.add_argument("--digest", help="with --image")
     p.add_argument("--values", type=pathlib.Path, default=VALUES)
     args = p.parse_args()
-    for d in (args.server_digest, args.db_digest):
-        if not DIGEST.match(d):
-            sys.exit(f"not a sha256 digest: {d}")
+    if args.image:
+        digests = {IMAGES[args.image]: args.digest}
+    elif args.expansion:
+        digests = {
+            ("images", args.expansion, "server"): args.server_digest,
+            ("images", args.expansion, "db"): args.db_digest,
+        }
+    else:
+        p.error("give --expansion or --image")
     text = args.values.read_text()
-    text = pin(text, args.expansion, "server", args.tag, args.server_digest)
-    text = pin(text, args.expansion, "db", args.tag, args.db_digest)
+    for keys, digest in digests.items():
+        if not DIGEST.match(digest or ""):
+            sys.exit(f"{'.'.join(keys)}: not a sha256 digest: {digest}")
+        text = pin(text, keys, args.tag, digest)
     args.values.write_text(text)
-    print(f"pinned the {args.expansion} images to {args.tag}")
+    pinned = f"the {args.image} image" if args.image else f"the {args.expansion} images"
+    print(f"pinned {pinned} to {args.tag}")
 
 
 if __name__ == "__main__":
