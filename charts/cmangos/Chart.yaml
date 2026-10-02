@@ -6,7 +6,7 @@ description: |-
   database installation, and client-data extraction. Playerbots and the
   auction house bot are compiled into the images and off by default.
 type: application
-version: 0.2.3
+version: 0.3.0
 keywords:
   - cmangos
   - mangos
