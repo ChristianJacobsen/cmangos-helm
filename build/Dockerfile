@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.10
+# syntax=docker/dockerfile:1.27
 # The ref defaults are branch heads. build/build-images.sh passes the pins
 # from build/sources.env.
 
