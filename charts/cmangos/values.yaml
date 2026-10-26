@@ -19,37 +19,37 @@ images:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-server
-      tag: "20261019-8ec338a"
-      digest: "sha256:41d441ff0e48177b832b87c876b0357c2c4a2335f3fa1c2a3a25a9d8bd27e8ba"
+      tag: "20261026-8ec338a"
+      digest: "sha256:29d33158f8fa0e679cda9a5b39e6e1027f1c143e36f5eb1d9ed1cef9932b8d0f"
     # -- Database installer (target "db"). Must come from the same build as
     # the server image, because the SQL updates track the core revision.
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-classic-db
-      tag: "20261019-8ec338a"
-      digest: "sha256:82f33936c728dd5bb307bba4cf79da8d36ad458623e272701769a1953d9b4eb7"
+      tag: "20261026-8ec338a"
+      digest: "sha256:6b26789a5ef6cd351f19882d3cc5f1be8ac3c51f67b0eba1f71a38a7ab8472d5"
   tbc:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-server
-      tag: "20261019-848851f"
-      digest: "sha256:d61d1a59acc56cd71c3c7ddc1c8ea988eccaef2bca5159a00323501ee4baac2d"
+      tag: "20261026-848851f"
+      digest: "sha256:ab7a582ee2e932c29e20e5fcdec96666c2a6d51a380243dc003b876c9defe5a4"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-tbc-db
-      tag: "20261019-848851f"
-      digest: "sha256:949a3264861982263315b708fcc1f064f81993afe42bac69a673c766a37b5006"
+      tag: "20261026-848851f"
+      digest: "sha256:541e3aca1fe520694ae49fe6c51235b14a8c93e6ed686863eaaadd047dec4843"
   wotlk:
     server:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-server
-      tag: "20261019-2fc8161"
-      digest: "sha256:0b4d0a079dd8f0542bd0ab10af6cfd0396553d344662c01e9080bf2af862fc5e"
+      tag: "20261026-2fc8161"
+      digest: "sha256:6f98e7042b75db6b7e253ccd44de1f5c1eb43b574f0203bbb2973888a70f0f97"
     db:
       registry: ghcr.io
       repository: christianjacobsen/cmangos-wotlk-db
-      tag: "20261019-2fc8161"
-      digest: "sha256:73d79393733041bb9f6f4a74ac5d6ee7e0908e62665eba918b117619bfeddc4d"
+      tag: "20261026-2fc8161"
+      digest: "sha256:f2b6d6ab485a7ad18fcb8309f6d066ac62a1e766919f913d97150d2099ff9042"
   # -- kubectl, for the init containers that wait for the db-init Job.
   # renovate: datasource=docker depName=registry.k8s.io/kubectl
   kubectl:
@@ -102,8 +102,8 @@ mysql:
   image:
     registry: ghcr.io
     repository: christianjacobsen/cmangos-mysql
-    tag: "9.7.2-20261019"
-    digest: "sha256:40e9a3bd3e97ea7bf0b9fa5a42205816500af58410359b8b18f00eeb1f0d249e"
+    tag: "9.7.2-20261026"
+    digest: "sha256:2407b812da20d0ccd407d767a03fd35782c95e185df93b54781ef3869fd582a1"
   # -- Root password. Empty = generated and kept across upgrades. MySQL reads
   # it only when it initializes an empty data directory.
   rootPassword: ""
