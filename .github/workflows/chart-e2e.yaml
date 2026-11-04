@@ -86,8 +86,11 @@ jobs:
           # The unix socket fails on kind (docker-library/mysql#936).
           q() { kubectl -n cmangos exec cmangos-mysql-0 -- env MYSQL_PWD="$pw" mysql -h 127.0.0.1 -uroot -N -e "$1"; }
           case "$EXPANSION" in classic) level=0 ;; tbc) level=1 ;; wotlk) level=2 ;; esac
-          q "SELECT username, gmlevel, expansion FROM ${EXPANSION}realmd.account" | tee /dev/stderr \
-            | grep -q "^E2E	3	$level$"
+          # grep -q exits at the first match, and pipefail then fails the step on
+          # the SIGPIPE of a command that still writes. So no pipe into grep -q.
+          accounts="$(q "SELECT username, gmlevel, expansion FROM ${EXPANSION}realmd.account")"
+          echo "$accounts" >&2
+          grep -q "^E2E	3	$level$" <<< "$accounts"
           test "$(q "SELECT COUNT(*) FROM ${EXPANSION}realmd.account WHERE username = 'ADMINISTRATOR'")" = 0
           test "$(q "SELECT COUNT(*) FROM ${EXPANSION}mangos.creature_template")" -gt 1000
           q "SELECT v FROM ${EXPANSION}mangos.cmangos_helm_state WHERE k = 'world_content'"
@@ -107,7 +110,8 @@ jobs:
           set -euo pipefail
           helm upgrade cmangos charts/cmangos -n cmangos --reuse-values --set dbInit.realm.name=e2e-upgrade
           kubectl -n cmangos wait --for=condition=complete job/cmangos-db-init-r2 --timeout=1200s
-          kubectl -n cmangos logs job/cmangos-db-init-r2 | grep -q 'world content is current'
+          logs="$(kubectl -n cmangos logs job/cmangos-db-init-r2)"
+          grep -q 'world content is current' <<< "$logs"
 
       - name: diagnose on failure
         if: failure()
