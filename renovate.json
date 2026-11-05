@@ -74,14 +74,6 @@
       "schedule": [
         "before 4am on monday"
       ]
-    },
-    {
-      "description": "TODO: remove once playerbots builds against mangos-wotlk 864571c (cmangos/playerbots#409), which moved the OutdoorPvP manager from the sOutdoorPvPMgr global into each map. Until then the WotLK core and database stay at the pins of chart 0.3.2.",
-      "matchDepNames": [
-        "https://github.com/cmangos/mangos-wotlk",
-        "https://github.com/cmangos/wotlk-db"
-      ],
-      "enabled": false
     }
   ]
 }
