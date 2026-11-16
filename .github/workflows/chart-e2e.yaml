@@ -118,9 +118,7 @@ jobs:
         run: |
           kubectl -n cmangos get pods -o wide || true
           kubectl -n cmangos get jobs || true
-          for j in $(kubectl -n cmangos get jobs -o name); do
-            kubectl -n cmangos logs "$j" --tail=100 || true
-          done
           for p in $(kubectl -n cmangos get pods -o name); do
+            kubectl -n cmangos logs "$p" --all-containers --prefix --tail=100 || true
             kubectl -n cmangos describe "$p" | tail -30 || true
           done
